@@ -258,9 +258,20 @@ console.log("== ①b 龙虎榜日期选择器接到服务端 ==");
 	assert.equal(todayDateStr(new Date(2026, 9, 10, 0, 30)), "2026-10-10", "凌晨 00:30 仍是当天");
 	assert.equal(todayDateStr(new Date(2026, 0, 5, 23, 59)), "2026-01-05", "月末/年末补零");
 	assert.equal(todayDateStr(new Date(2026, 11, 31, 12, 0)), "2026-12-31", "年末不越界");
-	// 与 UTC 的差异正是引入该函数的原因
+	// todayDateStr 必须取**本地日期分量**（不能用 toISOString 的 UTC 日期）。
+	//
+	// 注意断言本身不能依赖时区：早先这里写的是
+	//   assert.notEqual(dawn.toISOString().slice(0,10), todayDateStr(dawn))
+	// 它只在 UTC+8 这类非 UTC 时区成立 —— new Date(y,m,d,h,mi) 造的是机器本地时间，
+	// 在 UTC 机器上本地日期与 UTC 日期恰好相等，断言会假失败（CI 跑在 UTC 上就是）。
+	// 现在改成断言"函数取的是本地年月日"，在任何时区都成立；实现层面再用源码断言锁一次。
 	const dawn = new Date(2026, 9, 10, 0, 30);
-	assert.notEqual(dawn.toISOString().slice(0, 10), todayDateStr(dawn), "不能用 UTC 日期当 max");
+	const localDay = `${dawn.getFullYear()}-${String(dawn.getMonth() + 1).padStart(2, "0")}-${String(dawn.getDate()).padStart(2, "0")}`;
+	assert.equal(todayDateStr(dawn), localDay, "todayDateStr 取本地日期分量");
+	assert.match(todayDateStr(dawn), /^\d{4}-\d{2}-\d{2}$/, "输出必须是 YYYY-MM-DD");
+	const todaySrc = bundle.slice(bundle.indexOf("function todayDateStr("), bundle.indexOf("function todayDateStr(") + 300);
+	assert.doesNotMatch(todaySrc, /toISOString|getUTC/, "todayDateStr 不得用 UTC 口径（toISOString / getUTC*）");
+	assert.match(todaySrc, /getFullYear\(\)/, "todayDateStr 必须用本地年份");
 }
 
 console.log("\n✅ 第二批改进 测试全部通过");
