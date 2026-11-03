@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：主面板（标签页 + 弹窗管理 + 拖拽 + 预警 toast）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：主面板（标签页 + 弹窗管理 + 拖拽 + 预警 toast）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { createRoot, h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, calendarHint, closeConfirm, ConfirmDialog, confirmListeners, loadAnalysisConfig, marketOpenLabel, normCode, onToast, ToastStack, useAnalysisConfig, useInterval } from "./core.js";
@@ -8,8 +8,11 @@ import { WatchlistTab } from "./watchlist-tab.js";
 import { ScreenerTab } from "./screener-tab.js";
 import { NewsTab } from "./news-tab.js";
 import { AnalysisTab } from "./analysis-tab.js";
+import { OtcFundTab } from "./otc-fund-tab.js";
 import { SettingsDialog } from "./settings.js";
 import { StockDetailWindow } from "./detail.js";
+import { DISPLAY_NAME } from "../../lib/identity.js";
+import { BRAND_ICON_SVG } from "./icon.js";
 
 const TABS = [
 	{ key: "indices", label: "大盘" },
@@ -18,6 +21,7 @@ const TABS = [
 	{ key: "screener", label: "选股" },
 	{ key: "news", label: "快讯" },
 	{ key: "analysis", label: "分析" },
+	{ key: "otcFund", label: "基金" },
 ];
 
 /** 标签图标：手写 24×24 描边路径（Lucide 风格）。
@@ -42,8 +46,9 @@ const TAB_ICONS = {
 		["rect", { x: 13.75, y: 8, width: 4.5, height: 9, rx: 1 }],
 		["path", { d: "M16 17v3" }],
 	],
-	// 自选：五角星
-	star: [["path", { d: "M12 3.6l2.6 5.27 5.82.85-4.21 4.1.99 5.78L12 16.87l-5.2 2.73.99-5.78-4.21-4.1 5.82-.85z" }]],
+	// 自选：五角星（key 必须与 TABS 里的 key 一致，否则 tabIcon() 拿到空数组、
+	// 这个标签就没有图标——之前写成 star 而 TABS 用的是 watchlist，正是这个 bug）
+	watchlist: [["path", { d: "M12 3.6l2.6 5.27 5.82.85-4.21 4.1.99 5.78L12 16.87l-5.2 2.73.99-5.78-4.21-4.1 5.82-.85z" }]],
 	// 选股：漏斗筛选
 	screener: [
 		["path", { d: "M3.5 5.5h17" }],
@@ -61,6 +66,12 @@ const TAB_ICONS = {
 	analysis: [
 		["path", { d: "M12 3.5l1.9 4.35 4.35 1.9-4.35 1.9L12 16l-1.9-4.35-4.35-1.9 4.35-1.9z" }],
 		["path", { d: "M18.5 15.5l.9 2.05 2.05.9-2.05.9-.9 2.05-.9-2.05-2.05-.9 2.05-.9z" }],
+	],
+	// 场外基金：净值曲线（坐标轴 + 右上趋势线与箭头）。
+	otcFund: [
+		["path", { d: "M3 3v16.5A1.5 1.5 0 0 0 4.5 21H21" }],
+		["path", { d: "M7 14.8l3.8-4.2 3 2.7 4.7-5.6" }],
+		["path", { d: "M15.6 7.7h2.9v2.9" }],
 	],
 };
 
@@ -98,7 +109,7 @@ export function topWindow(list) {
 	return top;
 }
 
-export function LeekBoxPanel({ onClose }) {
+export function PortfolioPanel({ onClose }) {
 	const [tab, setTab] = useState("indices");
 	const [wins, setWins] = useState([]);
 	const [watchCodes, setWatchCodes] = useState([]);
@@ -289,7 +300,9 @@ export function LeekBoxPanel({ onClose }) {
 						? h(ScreenerTab, { onOpen: openStock, watchCodes })
 						: tab === "analysis"
 							? h(AnalysisTab, { onOpen: openStock, configured: analysisCfg.configured, onOpenSettings: () => setSettingsOpen(true) })
-							: h(NewsTab, { onOpen: openStock });
+							: tab === "otcFund"
+								? h(OtcFundTab, {})
+								: h(NewsTab, { onOpen: openStock });
 	return h(
 		"div",
 		{
@@ -310,7 +323,7 @@ export function LeekBoxPanel({ onClose }) {
 			h(
 				"div",
 				{ className: "lkb_head", title: "拖动移动窗口 · 双击复位", onPointerDown: onHeadPointerDown, onDoubleClick: resetPos },
-				h("span", { className: "lkb-headTitle" }, h("span", { className: "lkb-logo" }, "🥬"), "韭菜盒子"),
+				h("span", { className: "lkb_headTitle" }, h("span", { className: "lkb-logo", dangerouslySetInnerHTML: { __html: BRAND_ICON_SVG } }), DISPLAY_NAME),
 				h(
 					"div",
 					{ className: "lkb_headRight" },
@@ -321,7 +334,7 @@ export function LeekBoxPanel({ onClose }) {
 			),
 			h(
 				"div",
-				{ className: "lkb_tabBar", role: "tablist", "aria-label": "韭菜盒子面板", onKeyDown: onTabKeyDown },
+				{ className: "lkb_tabBar", role: "tablist", "aria-label": `${DISPLAY_NAME}面板`, onKeyDown: onTabKeyDown },
 				h(
 					"div",
 					{ className: "lkb_tabTrack" },
@@ -399,7 +412,7 @@ export function mountPanel() {
 		container.dataset.dshPlugin = "leekbox";
 		document.body.appendChild(container);
 		root = createRoot(container);
-		root.render(h(LeekBoxPanel, { onClose: close }));
+		root.render(h(PortfolioPanel, { onClose: close }));
 	};
 	const toggle = () => {
 		if (root !== void 0) close();

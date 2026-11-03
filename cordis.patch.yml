@@ -1,6 +1,7 @@
-# bundle patch for the leekbox plugin: inserts its plugin row into the web
+# bundle patch for the portfolio plugin: inserts its plugin row into the web
 # profile roster. Applied as a profile bundle layer (the `dsh.bundle.patch`
-# manifest field).
+# manifest field). Forked from SuCriss/dsh-leekbox (upstream row id "leekbox");
+# the distinct row id avoids colliding with an installed upstream copy.
 - insert:
-    - id: leekbox
-      name: 'dsh-leekbox'
+    - id: portfolio
+      name: 'dsh-portfolio'

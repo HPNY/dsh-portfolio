@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：AI 个股分析页
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：AI 个股分析页
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 //
 // 模型配置已拆到「全局设置」（面板头部 ⚙️ → settings.js，走 core.js 的全局单例），

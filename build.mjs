@@ -1,4 +1,5 @@
-// 韭菜盒子 LeekBox — client bundle build (esbuild).
+// 持仓看板 dsh-portfolio — client bundle build (esbuild).
+// forked from SuCriss/dsh-leekbox; adds the OTC fund tab.
 //
 //   npm run build   一次性构建 → lib/client.js
 //   npm run dev     watch 模式，改 src/client/* 自动重建
@@ -12,12 +13,13 @@ import { readFileSync, writeFileSync } from "node:fs";
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 const OUTFILE = "lib/client.js";
 
-const banner = `// 韭菜盒子 LeekBox — browser half. v${pkg.version}
+const banner = `// 持仓看板 dsh-portfolio — browser half. v${pkg.version}
+// forked from SuCriss/dsh-leekbox; adds the OTC fund tab.
 //
 // GENERATED FILE — 由 build.mjs 从 src/client/* 打包生成，请勿手改。
 // 改代码去 src/client/，然后 npm run build。
 window.__ModuleLoader__.load({
-	id: "dsh-leekbox",
+	id: "dsh-portfolio",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -40,7 +42,7 @@ const INERT_USE_STRICT = /^"use strict";\r?\n/;
 
 /** esbuild 只负责生成代码，banner/footer 由这里合成后落盘（write:false）。 */
 const emitPlugin = {
-	name: "leekbox-emit",
+	name: "portfolio-emit",
 	setup(b) {
 		b.onEnd((result) => {
 			if (result.errors.length > 0) return;
@@ -48,7 +50,7 @@ const emitPlugin = {
 			if (out === undefined) return;
 			const text = banner + out.text.replace(INERT_USE_STRICT, "") + footer;
 			writeFileSync(OUTFILE, text);
-			console.log(`[leekbox] ${OUTFILE} ${(Buffer.byteLength(text) / 1024).toFixed(1)}kb`);
+			console.log(`[portfolio] ${OUTFILE} ${(Buffer.byteLength(text) / 1024).toFixed(1)}kb`);
 		});
 	},
 };
@@ -62,6 +64,9 @@ const options = {
 	external: ["react", "react-dom/client"],
 	outfile: OUTFILE,
 	write: false,
+	// assets/icon.svg 当字符串内联进产物（见 src/client/icon.js）——图标只有一份真源，
+	// 侧边栏图标与 package.json `icon` 不会各自漂移。
+	loader: { ".svg": "text" },
 	plugins: [emitPlugin],
 	logLevel: "info",
 	// 产物要进仓库 + 被测试按标记抽源码跑断言，保持可读、不压缩。
@@ -78,7 +83,7 @@ const options = {
 if (process.argv.includes("--watch")) {
 	const ctx = await context(options);
 	await ctx.watch();
-	console.log("[leekbox] watching src/client/* → lib/client.js");
+	console.log("[portfolio] watching src/client/* → lib/client.js");
 } else {
 	await build(options);
 }

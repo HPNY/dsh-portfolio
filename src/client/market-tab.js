@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：行情页（搜索 + 榜单 + 板块 + 龙虎榜）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：行情页（搜索 + 榜单 + 板块 + 龙虎榜）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, cnMarket, describeError, fmt, fmtAmount, fmtPct, fmtSign, fmtYi, isWatched, openOnRow, trend, useTradingInterval } from "./core.js";

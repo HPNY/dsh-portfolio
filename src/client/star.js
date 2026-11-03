@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：自选星标按钮
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：自选星标按钮
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h } from "./react.js";
 import { API, api, lkbConfirm, notifyFailure } from "./core.js";

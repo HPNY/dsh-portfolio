@@ -2,7 +2,7 @@
 //
 // lib/client.js 是 build.mjs 从 src/client/* 打出来的 DSH 客户端插件 bundle。
 // 这个测试卡住它的**对外契约**，防止构建链改动悄悄把产物打坏：
-//   1. 文件以 window.__ModuleLoader__.load() 包装，id 是 "dsh-leekbox"；
+//   1. 文件以 window.__ModuleLoader__.load() 包装，id 是 "dsh-portfolio"；
 //   2. react / react-dom/client 保持 external——产物里只允许各出现一次
 //      require("...")（宿主自带 React，打进产物就是双 React 事故）；
 //   3. factory(require) 用桩 React 跑完模块顶层代码（顶层不碰 DOM，
@@ -20,7 +20,15 @@ const check = (name, ok, note = "") => {
 // 1) 包装形态
 check("生成声明头（GENERATED FILE）", src.includes("GENERATED FILE"));
 check("ModuleLoader 包装", src.includes("window.__ModuleLoader__.load({"));
-check("插件 id", src.includes('id: "dsh-leekbox"'));
+check("插件 id", src.includes('id: "dsh-portfolio"'));
+// 样式表整体写在模板字符串里。注释里一旦混进反引号，字符串会提前截断，产出
+// "语法合法、运行时才炸" 的 bundle（`node --check` 也查不出来：剩下的部分会被当成
+// 带标签的模板调用）。这条在真正执行 factory 之前就先检查 CSS 是否完整。
+check(
+	"样式表未被反引号截断（CSS 完整）",
+	/\.lkb_entry\{box-sizing:border-box;border-radius:var\(--dsw-radius-md\)/.test(src) &&
+		/\.lkb_entryIcon svg\{display:block;width:16px;height:16px\}/.test(src)
+);
 
 // 2) React 不进 bundle
 const reactRequires = src.match(/require\("react"\)/g) ?? [];
@@ -56,13 +64,107 @@ const requireStub = (name) => {
 
 new Function(src)();
 check("执行后调用了 ModuleLoader.load", registered !== null);
-check("registered.id === dsh-leekbox", registered?.id === "dsh-leekbox");
+check("registered.id === dsh-portfolio", registered?.id === "dsh-portfolio");
 check("registered.factory 是函数", typeof registered?.factory === "function");
 
 const exp = registered.factory(requireStub);
 check("导出 apply(ctx)", typeof exp?.apply === "function");
 check("导出 inject 数组", Array.isArray(exp?.inject));
 check("inject 为空（样式走 styles.js 自注入）", exp.inject.length === 0);
+
+// 3b) 侧边栏图标契约
+//
+// 图标必须是**内联单色线框 SVG**，因为它靠 `currentColor` 继承按钮文字色：
+// 用 emoji 就固定是彩色字形，用 <img src> 则 SVG 是隔离文档、继承不到颜色（渲染成黑）。
+// 这三条断言就是防止有人日后把图标改回 emoji 或换成外部图片。
+check("图标是内联 SVG（非 emoji、非外部图片）", src.includes("<svg xmlns=") && !src.includes("<img "));
+check(
+	"图标为纯线框：stroke=currentColor + width=2 + 圆头端点/连接",
+	src.includes('stroke="currentColor"') &&
+		src.includes('stroke-width="2"') &&
+		src.includes('stroke-linecap="round"') &&
+		src.includes('stroke-linejoin="round"') &&
+		src.includes('fill="none"')
+);
+check("图标不写死颜色（无 #000/#ccc 之类填充）", !/fill="#[0-9a-fA-F]{3,6}"/.test(src) && !/stroke="#[0-9a-fA-F]{3,6}"/.test(src));
+check(
+	"图标是 16x16（与原生 .wtg9ga_panelGlyph 里 16px 的图标同尺寸）",
+	src.includes(".lkb_entryIcon svg{display:block;width:16px;height:16px}") && src.includes('svg.style.width = "16px"')
+);
+// 文字节点与图标槽位都要借用原生菜单项的 class，才能和「时钟」「四角星」对齐
+check("挂载后借用原生菜单项 class（图标槽位 + 文字节点）", src.includes("function adoptNativeClasses(") && src.includes("nativeIcon.parentElement"));
+// 行内 style 优先级高于类选择器，槽位尺寸不会被借来的 class 改掉
+check(
+	"图标几何写进行内 style",
+	src.includes("function lockIconGeometry(") && src.includes('slot.style.flex = "none"') && src.includes('svg.style.height = "16px"')
+);
+// 行样式数值全部来自 app.asar 里 DSH 自己的 .wtg9ga_panelRow，不是估的
+check(
+	"行样式与原生 .wtg9ga_panelRow 一致（min-height36 / padding 7px 8px / gap 8px / margin 0 2px / line-height22）",
+	src.includes("min-height:36px") &&
+		src.includes("padding:7px 8px") &&
+		src.includes("gap:8px") &&
+		src.includes("margin:0 2px") &&
+		src.includes("line-height:22px") &&
+		src.includes("color:var(--dsw-alias-label-primary)") &&
+		src.includes("font:inherit")
+);
+// 入口插在 nav.wtg9ga_panelList 外面，拿不到那个 nav 的 gap:2px，靠 margin-bottom 补齐，
+// 否则和相邻原生行的行距会少 2px。
+check("行距补齐原生 panelList 的 gap:2px", src.includes("margin:0 2px 2px"));
+// 基金页根节点如果不带类名、CSS 也不给基准字号，未显式设字号的文字（基金名等）
+// 会继承浏览器默认 16px，而面板其它页是 12.5px —— 表现为"整页字体比别的页大一圈"。
+check(
+	"基金页有基准字号且与面板表格一致（12.5px）",
+	src.includes('className: "lkb_fundPage"') && src.includes(".lkb_fundPage{font-size:12.5px}")
+);
+check("基金页 NAV 字号不超过面板常态量级（13px）", src.includes(".lkb_fundNavVal{font-size:13px"));
+// 基金列表用**真正的 <table>**：表头/行/分隔线/悬停全部由 .lkb_card 的表格规则提供，
+// 与自选页、行情页在结构上就是同一种东西。用 grid 模拟容易出现各行列宽独立计算、错位。
+check(
+	"基金列表用真正的表格（table + thead + tbody）",
+	src.includes('"table"') && src.includes('"thead"') && src.includes('"tbody"')
+);
+check("展开行用 colSpan 合并整行（7 列）", src.includes("colSpan: 7"));
+// 成本与份额必须是两列，不能挤在一个单元格里
+check("成本、份额是两个独立表头", src.includes('}, "成本"),') && src.includes('}, "份额"),'));
+// 两列的修改方式与自选页一致：点单元格 -> .lkb-input，复用 .lkb-posCell 观感
+check(
+	"成本/份额可内联编辑（复用自选页 .lkb-posCell 交互）",
+	src.includes("function EditableCell(") && src.includes("lkb-posCell") && src.includes("const saveField")
+);
+// 旧的卡片/grid 方案必须彻底清掉，否则两套样式并存会打架
+check("旧的卡片/grid 模拟样式已移除", !src.includes(".lkb_fundRow{") && !src.includes(".lkb_fundHead{") && !src.includes(".lkb_fundMain{"));
+// 数值精度：浮盈一律两位小数。fmtAmount 对 <1万的数会取整（-3742.67 显示成 -3743），
+// 所以必须用 fmtSign，且不能再出现 fmtAmount(rowPnl)。
+check("基金浮盈两位小数（用 fmtSign，不用 fmtAmount）", src.includes("fmtSign(rowPnl)") && !src.includes("fmtAmount(rowPnl)"));
+check("基金净值四位小数", src.includes("fmt(nav, 4)") && src.includes("fmt(fund.costNav, 4)"));
+// 基金页的顶部汇总条与自选页同构：市值 / 成本 / 浮动盈亏 / 收益率（指标由 Host 算好）。
+// 用变量名区分两页，避免只断言到自选那份就误过。
+check(
+	"基金汇总条与自选页同构（市值 / 成本 / 浮动盈亏 / 收益率）",
+	src.includes('"市值 ", h("b", null, fmtAmount(marketValue))') &&
+		src.includes('"成本 ", h("b", null, fmtAmount(totalCost))') &&
+		src.includes('"浮动盈亏 ", h("b", { className: trend(fundPnl)') &&
+		src.includes('"收益率 ", h("b", { className: trend(returnPct)')
+);
+// 列调整：表头「盈亏百分比」简化为「盈亏」；「解套需涨」「解套进度」两列都已删除。
+// 注意 tooltip 里仍会描述"盈亏百分比"这个含义，所以只断言表头写法，不否证整个词。
+check("表头为「盈亏」（且不再有解套需涨 / 解套进度两列）", src.includes('}, "盈亏"),') && !src.includes("解套需涨") && !src.includes("解套进度"));
+check("解套进度条相关代码已移除", !src.includes("lkb_fundProgress") && !src.includes("fillPct"));
+// 面板内部图标：这两处都是"静默失效"型 bug —— 样式不生效、图标渲染成空 SVG，
+// 界面上只是看着不对，控制台一声不响，所以必须靠断言兜住。
+check("头部标题类名与 CSS 一致（lkb_headTitle，不是 lkb-headTitle）", src.includes("lkb_headTitle") && !src.includes("lkb-headTitle"));
+{
+	const panelSrc = readFileSync(new URL("./src/client/panel.js", import.meta.url), "utf8");
+	const tabKeys = [...(panelSrc.match(/const TABS = \[([\s\S]*?)\];/)?.[1] ?? "").matchAll(/key:\s*"([^"]+)"/g)].map((m) => m[1]);
+	const iconKeys = [...(panelSrc.match(/const TAB_ICONS = \{([\s\S]*?)\n\};/)?.[1] ?? "").matchAll(/^\t([A-Za-z0-9_]+):/gm)].map((m) => m[1]);
+	check(
+		"每个 Tab 的 key 都有对应图标（TAB_ICONS 键名与 TABS 对齐）",
+		tabKeys.length > 0 && tabKeys.every((k) => iconKeys.includes(k)),
+		`TABS=${tabKeys.join(",")} | TAB_ICONS=${iconKeys.join(",")}`
+	);
+}
 
 // 4) apply() 在最小 DOM 桩上必须能挂起来
 //
@@ -126,7 +228,7 @@ check("inject 为空（样式走 styles.js 自注入）", exp.inject.length === 
 	check("apply 里挂载了预警看护", /\bmountAlertWatcher\s*\(/.test(applyFn), applyFn.split("\n").filter((l) => /mount|dispose/.test(l)).join(" | "));
 	check("apply 里启动了交易日历时钟", /\bstartSessionClock\s*\(/.test(applyFn));
 	check("apply 里把预警宿主挂进了 disposers", /alertWatcher\.dispose\s*\(/.test(applyFn));
-	check("面板不再自己渲染 AlertWatcher", !/function LeekBoxPanel[\s\S]*?h\(AlertWatcher\b/.test(src), (src.match(/h\(AlertWatcher\b/g) ?? []).length + " 处渲染（应仅常驻宿主 1 处）");
+	check("面板不再自己渲染 AlertWatcher", !/function PortfolioPanel[\s\S]*?h\(AlertWatcher\b/.test(src), (src.match(/h\(AlertWatcher\b/g) ?? []).length + " 处渲染（应仅常驻宿主 1 处）");
 	check("AlertWatcher 只在常驻宿主里渲染一次", (src.match(/h\(AlertWatcher\b/g) ?? []).length === 1);
 	// 预警宿主自带 toast 栈：面板没开时也得弹得出来
 	check("产物的 toast 走订阅式广播（core 的 pushToast/onToast）", src.includes("toastListeners") && src.includes("function pushToast("));

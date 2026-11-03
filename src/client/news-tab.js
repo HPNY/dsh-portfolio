@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：7×24 快讯页
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：7×24 快讯页
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, useInterval } from "./core.js";

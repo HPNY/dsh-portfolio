@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：全局设置弹窗（AI 模型配置）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：全局设置弹窗（AI 模型配置）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 //
 // 面板头部 ⚙️ 打开。配置读/写走 core.js 的全局单例（saveAnalysisConfig /

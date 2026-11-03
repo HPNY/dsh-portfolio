@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：自选页（持仓 + 预警 + 导入导出）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：自选页（持仓 + 预警 + 导入导出）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { createRoot, h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, fmt, fmtAmount, fmtPct, fmtSign, lkbConfirm, notifyFailure, onToast, openOnRow, pushToast, ToastStack, trend, useTradingInterval } from "./core.js";
@@ -354,7 +354,7 @@ export function WatchlistTab({ onOpen, bump }) {
 		fetch(`${API.watchlist}/export?format=${format}`)
 			.then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))))
 			.then((blob) => {
-				downloadBlob(`leekbox-watchlist-${dateStamp()}.${format}`, blob);
+				downloadBlob(`portfolio-watchlist-${dateStamp()}.${format}`, blob);
 				setIoMsg(`已导出 ${items.length} 只（${format.toUpperCase()}）`);
 			})
 			.catch((e) => setIoMsg(`导出失败：${describeError(e)}`));

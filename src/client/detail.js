@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：个股详情弹窗（K线/分时/资金流/F10）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：个股详情弹窗（K线/分时/资金流/F10）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useEffect, useRef, useState } from "./react.js";
 import { API, api, cnMarket, describeError, fmt, fmtAmount, fmtPct, fmtSign, fmtTime, fmtVol, fmtYi, notifyFailure, trend, useTradingInterval } from "./core.js";
@@ -554,7 +554,7 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 		h(
 			"div",
 			{ className: "lkb_head", title: "拖动移动窗口 · 双击居中", onPointerDown: onHeadDown, onDoubleClick: centerWindow },
-			h("span", { className: "lkb-headTitle" }, h("span", { className: "lkb-logo" }, "📈"), name ?? code, h("span", { className: "lkb-code" }, code), mkt === "" ? null : h("span", { className: "lkb-mktTag" }, mkt)),
+			h("span", { className: "lkb_headTitle" }, h("span", { className: "lkb-logo" }, "📈"), name ?? code, h("span", { className: "lkb-code" }, code), mkt === "" ? null : h("span", { className: "lkb-mktTag" }, mkt)),
 			h(
 				"div",
 				{ className: "lkb_headRight" },

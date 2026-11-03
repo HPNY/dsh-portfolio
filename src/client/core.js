@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：API 通道 + 格式化 + 通用 hooks
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：API 通道 + 格式化 + 通用 hooks
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useCallback, useEffect, useRef, useState } from "./react.js";
 
@@ -25,6 +25,8 @@ export const API = {
 	analysis: "/api/leekbox/analysis/analyze",
 	analysisStream: "/api/leekbox/analysis/analyze/stream",
 	analysisModels: "/api/leekbox/analysis/models",
+	otcFundSnapshot: "/api/leekbox/otc-fund/snapshot",
+	otcFundMutate: "/api/leekbox/otc-fund/mutate",
 };
 
 const ERR_FALLBACK = "数据获取失败，请稍后重试";
@@ -46,7 +48,7 @@ export function describeError(e, fallback = ERR_FALLBACK) {
 	if (/abort|timeout|timed out/i.test(raw)) return "请求超时，请稍后重试";
 	const http = /^HTTP (\d{3})$/.exec(raw);
 	if (http !== null) return `服务返回异常（HTTP ${http[1]}）`;
-	console.warn("[leekbox] 未翻译的错误文案:", raw);
+	console.warn("[portfolio] 未翻译的错误文案:", raw);
 	return fallback;
 }
 

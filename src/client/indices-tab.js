@@ -1,4 +1,4 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：大盘页（指数 + 情绪）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：大盘页（指数 + 情绪）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useCallback, useEffect, useState } from "./react.js";
 import { API, api, cnMarket, describeError, fmt, fmtPct, fmtSign, marketOpenLabel, nowTime, openOnRow, trend, useTradingInterval } from "./core.js";

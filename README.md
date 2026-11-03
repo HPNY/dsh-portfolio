@@ -1,16 +1,20 @@
-# 韭菜盒子 LeekBox · A股看盘助手（DeepSeek Harness 插件）
+# 持仓看板（dsh-portfolio） · A股看盘 + 基金看板（DeepSeek Harness 插件）
 
-[![npm](https://img.shields.io/npm/v/dsh-leekbox?color=2f9e44&label=npm)](https://www.npmjs.com/package/dsh-leekbox)
-[![CI](https://github.com/SuCriss/dsh-leekbox/actions/workflows/ci.yml/badge.svg)](https://github.com/SuCriss/dsh-leekbox/actions/workflows/ci.yml)
+> **本仓库基于 [`SuCriss/dsh-leekbox`](https://github.com/SuCriss/dsh-leekbox)（韭菜盒子 LeekBox）
+> 扩展而来**，保留上游全部功能，并在同一插件内新增「基金」子系统。
+> 上游归属与改动清单见 [NOTICE.md](NOTICE.md)；基金子系统契约见 [docs/otc-fund.md](docs/otc-fund.md)。
+> 内部标识符（`/api/leekbox/*` 路由前缀、`.leekbox-*.json` 数据文件名等）为何保留旧名，
+> 见 [lib/identity.js](lib/identity.js) 的对应关系表。
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![platform](https://img.shields.io/badge/platform-web-1098ad)
-[![stars](https://img.shields.io/github/stars/SuCriss/dsh-leekbox?style=social)](https://github.com/SuCriss/dsh-leekbox/stargazers)
 
 [English](README.en.md) | 简体中文
 
-<img src="docs/og.png" alt="韭菜盒子 LeekBox — A股看盘助手 · DeepSeek Harness (DSH) 插件：实时行情、分时与K线、自选股盈亏与预警、技术信号选股、涨停情绪、龙虎榜、AI 分析" width="100%">
+<img src="docs/og.png" alt="持仓看板 dsh-portfolio — A股看盘助手 · DeepSeek Harness (DSH) 插件：实时行情、分时与K线、自选股盈亏与预警、技术信号选股、涨停情绪、龙虎榜、AI 分析、基金净值与解套进度" width="100%">
 
-**韭菜盒子（LeekBox）是一个 A 股实时行情看板，形态是 DeepSeek Harness（DSH）的 Web 客户端插件**：装好后 DSH 左侧边栏多出一个 🥬 入口，点开就是行情面板——实时行情与大盘指数、分时图与前复权 K 线、自选股（持仓成本 / 实时盈亏 / 价格预警）、技术信号选股、涨停情绪温度计与龙虎榜、7×24 三源聚合快讯、以及可自带模型的 AI 个股分析。全部请求由插件服务端在本机代理，浏览器同源访问 `/api/leekbox/*`，只监听 loopback。
+**持仓看板（dsh-portfolio）是一个 A 股实时行情 + 基金看板，形态是 DeepSeek Harness（DSH）的 Web 客户端插件**：装好后 DSH 左侧边栏多出一个**线框柱状图图标**的「持仓看板」入口，点开就是行情面板——实时行情与大盘指数、分时图与前复权 K 线、自选股（持仓成本 / 实时盈亏 / 价格预警）、技术信号选股、涨停情绪温度计与龙虎榜、7×24 三源聚合快讯、可自带模型的 AI 个股分析，以及**基金净值/估值跟踪、盈亏百分比与浮盈、历史净值曲线（叠加成本线）**。全部请求由插件服务端在本机代理，浏览器同源访问 `/api/leekbox/*`，只监听 loopback。
+
 
 > 如果你在找「DeepSeek Harness / DSH 的 A 股插件」「开源 A 股看盘面板」「自选股 + 价格预警 + 选股器」「涨停 / 龙虎榜 / 情绪温度计」，这个仓库就是它。数据来自腾讯财经、东方财富、新浪财经、金十数据的公开接口，开箱即用、不需要任何 API key（AI 分析除外，模型密钥由你自己配置）。
 
@@ -71,12 +75,12 @@ ln -s "<仓库路径>" "$DSH_HOME/profiles/web/node_modules/dsh-leekbox"
 #        - id: leekbox
 #          name: 'dsh-leekbox'
 
-# 4) profile watcher 约 1 秒内热重组合；刷新浏览器，侧边栏出现 🥬
+# 4) profile watcher 约 1 秒内热重组合；刷新浏览器，侧边栏出现「持仓看板」入口
 ```
 
 细节与常见坑见[安装](#安装)。要求 DSH ≥ 0.1.1-rc.1、**web profile**。
 
-## 六个标签页
+## 七个标签页
 
 | Tab | 功能 |
 | --- | --- |
@@ -86,6 +90,8 @@ ln -s "<仓库路径>" "$DSH_HOME/profiles/web/node_modules/dsh-leekbox"
 | 🔍 选股 | 两种模式：**评分选股**（按价格/涨跌幅/换手率筛选 + 13 项技术信号勾选 + 加权评分排序）和 **多策略交叉选股**（7 个预设策略的并行交集，个股需同时命中多个策略，按命中数排序）|
 | 📰 快讯 | 新浪 / 东财 / 金十 三源聚合 7×24 快讯，来源可筛选，重要资讯红色高亮，60 秒自动刷新，可点相关股票直达详情 |
 | 🤖 分析 | **AI 个股分析**：搜索选股后由服务端汇总实时行情 + 近 60 日 K 线概览 + F10 财务摘要，调模型生成结构化中文分析（含风险提示与免责声明，支持复制 / 重新生成）。模型在面板头部 ⚙️ **全局设置**里配置：**多服务商下拉**（DeepSeek / OpenAI / **Anthropic Claude** / Moonshot Kimi / 智谱 / 通义 / b.ai 等；OpenAI 兼容 + Anthropic 原生两种协议）+ **模型下拉**（可一键「获取模型」拉取真实列表，也可手填），持久化在 `$DSH_HOME/.leekbox-analysis.json`，密钥仅服务端保存、界面只显示脱敏值 |
+| 🧾 基金 | **场外基金净值与持仓看板**（持久化在 `$DSH_HOME/.leekbox-otc-fund.json`）：每只基金的**成本 / 份额点单元格内联编辑**（与自选页同一套交互），最新净值带 **估值 / 已披露** 徽标，展示**盈亏百分比**与**浮盈**（两位小数），净值陈旧时标注「数据未更新」，单只基金历史净值曲线并叠加**成本线水平参考线**，顶部汇总**基金市值**与**基金总浮盈**。净值为东财 pingzhongdata 全历史，盘中估值多源降级（取不到就如实显示已披露净值）。宿主按**披露窗口**分段轮询（18:00–20:00 每 30 分、20:00–23:00 每 5–10 分、23:00–01:00 每 15 分、01:00–06:00 每 60 分），详见 [docs/otc-fund.md](docs/otc-fund.md) |
+
 
 行情页顶部保留**连板梯队**（2板/3板/…及最高板数），可展开涨停池列表（点击直达个股详情）。
 
@@ -169,7 +175,7 @@ mklink /J "$DSH_HOME\profiles\web\node_modules\dsh-leekbox" "<本包路径>"
 #       name: 'dsh-leekbox'
 
 # 3. profile 配置文件 watcher 会在 ~1s 内热重组合，无需重启（服务端立即生效）；
-#    浏览器刷新页面后侧边栏出现 🥬 入口。
+#    浏览器刷新页面后侧边栏出现「持仓看板」入口（线框柱状图图标）。
 #    若修改了 lib/index.js（服务端代码），需要重启 DeepSeek Harness 进程生效。
 ```
 

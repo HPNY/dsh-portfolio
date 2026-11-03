@@ -1,19 +1,32 @@
-// 韭菜盒子 LeekBox — 客户端 bundle 源码：样式（含注入 IIFE）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：样式（含注入 IIFE）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 
 const CSS = `
-.lkb_entry{box-sizing:border-box;width:100%;height:36px;color:var(--dsw-alias-label-secondary);cursor:pointer;white-space:nowrap;background:0 0;border:none;border-radius:8px;align-items:center;gap:8px;padding:0 10px;font-size:13px;display:flex}
-.lkb_entry:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.lkb_entryIcon{flex:none;justify-content:center;align-items:center;width:24px;height:24px;display:inline-flex;font-size:16px;line-height:1}
-.lkb_entryLabel{text-overflow:ellipsis;overflow:hidden}
-[data-dsh-frame][data-sidebar-collapsed] .lkb_entry{border-radius:50%;justify-content:center;width:36px;height:36px;margin:0 auto 12px;padding:0}
+/* 侧边栏条目：逐项对齐 DSH 原生条目 .wtg9ga_panelRow。
+   注意：这段是模板字符串，注释里**不能出现反引号**，否则会提前截断字符串。
+   下面这些数值不是猜的，是从 app.asar 里 DSH 自己的 CSS 抄来的：
+     min-height:36px  padding:7px 8px  gap:8px  margin:0 2px  line-height:22px
+     border-radius:var(--dsw-radius-md)  color:var(--dsw-alias-label-primary)  font:inherit
+   连带列表间距也是原生的（.wtg9ga_panelList 为 gap:2px），所以纵向节奏自动一致。 */
+/* 入口是插在 .wtg9ga_root 下、nav.wtg9ga_panelList 的**外面**（见 sidebar.js 的 placeEntry），
+   拿不到那个 nav 的 gap:2px。这里用 margin-bottom:2px 把这一份间距补上，行距就与原生一致。
+   折叠态由下面的规则把 margin 归零。 */
+.lkb_entry{box-sizing:border-box;border-radius:var(--dsw-radius-md);min-height:36px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:none;align-items:center;gap:8px;margin:0 2px 2px;padding:7px 8px;line-height:22px;display:flex}
+.lkb_entry:hover{background:var(--dsw-alias-interactive-bg-hover)}
+/* 图标槽位：与原生 .wtg9ga_panelGlyph 完全一致 —— 只做 flex 居中、不定宽高，
+   尺寸由其中 SVG 自己决定。原生图标实际渲染在 16x16，24 的 viewBox 等比缩到 16px。 */
+.lkb_entryIcon{flex:none;justify-content:center;align-items:center;display:inline-flex}
+.lkb_entryIcon svg{display:block;width:16px;height:16px}
+.lkb_entryLabel{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}
+[data-dsh-frame][data-sidebar-collapsed] .lkb_entry{border-radius:var(--dsw-radius-md);justify-content:center;width:36px;height:36px;margin:0;padding:0}
 [data-dsh-frame][data-sidebar-collapsed] .lkb_entryLabel{display:none}
 .lkb_overlay{background:var(--dsw-alias-bg-mask-2,#080a1073);z-index:9999;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;display:block;position:fixed;inset:0}
 .lkb_card{background:var(--dsw-alias-bg-overlay,#fdfdfd);width:min(980px,94vw);max-width:min(980px,calc(100vw - 16px));height:min(640px,88vh);max-height:88vh;color:var(--dsw-alias-label-primary,#1c1e26);border-radius:14px;flex-direction:column;display:flex;overflow:hidden;box-shadow:0 20px 70px #00000059;position:fixed;z-index:10000;margin:0}
 .lkb_head{background:var(--dsw-alias-bg-base,#fff);align-items:center;gap:12px;padding:12px 18px;display:flex;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed);cursor:grab;touch-action:none;user-select:none}
 .lkb_head:active{cursor:grabbing}
 .lkb_headTitle{margin:0;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
-.lkb_headTitle .lkb-logo{font-size:18px}
+.lkb_headTitle .lkb-logo{font-size:18px;display:inline-flex;align-items:center}
+.lkb_headTitle .lkb-logo svg{display:block;width:18px;height:18px}
 .lkb_headSub{color:var(--dsw-alias-label-secondary,#8a8f9c);font-size:11px;font-weight:400}
 .lkb_headRight{margin-left:auto;display:flex;align-items:center;gap:10px}
 .lkb_mktStatus{font-size:11px;padding:3px 10px;border-radius:99px;background:var(--dsw-alias-bg-layer-1,#f2f3f5);color:var(--dsw-alias-label-secondary,#6b7280)}
@@ -63,8 +76,8 @@ body[data-ds-dark-theme] .lkb-banner{background:#6378dc26;border-color:#6378dc55
 .lkb_card tbody tr{cursor:pointer;transition:background .12s,box-shadow .12s;animation:lkb-rowIn .22s ease-out backwards}
 .lkb_card tbody tr:hover{background:#f8f9fd;box-shadow:inset 2px 0 0 #4c6ef5}
 @keyframes lkb-rowIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-.lkb_name{font-weight:600;color:var(--dsw-alias-label-primary)}
-.lkb_code{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px;margin-left:6px}
+.lkb_name,.lkb-name{font-weight:600;color:var(--dsw-alias-label-primary)}
+.lkb_code,.lkb-code{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px;margin-left:6px}
 .lkb-up{color:#e03131}
 .lkb-down{color:#0f9d6e}
 /* ---- 报价板单元格(行情页) ---- */
@@ -463,6 +476,44 @@ body[data-ds-dark-theme] .lkb-anHit:hover{border-color:#6378dc66}
 .lkb-settingsActions{display:flex;align-items:center;gap:10px;margin-top:4px}
 body[data-ds-dark-theme] .lkb_settingsMask{background:rgba(0,0,0,.5)}
 body[data-ds-dark-theme] .lkb_settingsBox{background:#3a3a3c;border-color:#ffffff14}
+/* ---- 场外基金页（盈亏百分比 / 浮盈 / 净值曲线） ----------------------------
+ * 列表直接用 <table>，表格骨架复用 .lkb_card table/th/td；这里只写基金特有的徽标、净值字号、
+ * 编辑区与净值曲线。盈亏颜色统一走 .lkb-up(红) / .lkb-down(绿)，即 A 股口径"涨红跌绿"。 */
+/* 基金页的基准字号。这一页是列表页，字号必须和自选页的表格对齐
+   （.lkb_card table 是 12.5px）。此前这里不给基准，未显式设字号的文字
+   （基金名等）就继承到浏览器默认 16px，整页看着比别的页大一圈。 */
+.lkb_fundPage{font-size:12.5px}
+/* 汇总条直接复用自选页的 .lkb-posSummary / .lkb-posTag，不再另写一份一样的 CSS。
+   列表改用真正的 <table>，外观由 .lkb_card table/th/td 那套规则直接提供
+   （白底圆角、11px 表头、行分隔线、悬停左侧主色条），不再需要卡片/grid 样式。 */
+.lkb_fundAddRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.lkb_fundDim{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11.5px;font-variant-numeric:tabular-nums}
+/* 展开行：整行一个 td（colSpan=8），表格默认的 nowrap/右对齐在这里要放开 */
+.lkb_fundDetailCell{white-space:normal;text-align:left;padding:10px 12px;cursor:auto}
+.lkb_fundFlag{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;background:#fff6f6;color:#d92d20;border:1px solid #f3b0b0;white-space:nowrap}
+.lkb_fundNavVal{font-size:13px;font-weight:700;color:var(--dsw-alias-label-primary,#1c1e26)}
+.lkb_fundBadge{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;white-space:nowrap;background:var(--dsw-alias-bg-layer-1,#f2f3f5);color:var(--dsw-alias-label-secondary,#6b7280)}
+.lkb_fundBadge[data-est="true"]{background:#fff4e6;color:#b25e09}
+/* 展开行内容：间距由 .lkb_fundDetailCell 的 padding 提供，这里不要再叠 margin/border */
+.lkb_fundDetail{margin-top:0;padding-top:0;border-top:0;display:flex;flex-direction:column;gap:9px}
+.lkb_fundEdit{display:flex;flex-direction:column;gap:8px}
+.lkb_fundEditGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
+.lkb_fundField{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--dsw-alias-label-secondary,#5f6672)}
+.lkb_fundEditActions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lkb_fundDanger{color:#d92d20;border-color:#f3b0b0}
+.lkb_fundEditErr{padding:0;text-align:left}
+.lkb_fundChart{display:flex;flex-direction:column;gap:2px}
+.lkb_fundChartSvg{display:block;width:100%;height:168px;border-radius:8px;background:var(--dsw-alias-bg-layer-1,#f7f8fa)}
+.lkb_fundChartAxis{display:flex;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--dsw-alias-label-tertiary,#a2a7b3);font-variant-numeric:tabular-nums}
+.lkb_fundCostTag{color:#4263eb;font-weight:600}
+.lkb_fundChartEmpty{height:120px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--dsw-alias-label-tertiary,#a2a7b3);background:var(--dsw-alias-bg-layer-1,#f7f8fa);border-radius:8px}
+@media (prefers-reduced-motion:reduce){.lkb_fundChartSvg{transition:none}}
+body[data-ds-dark-theme] .lkb_fundChartSvg,body[data-ds-dark-theme] .lkb_fundChartEmpty{background:#3a3a3c;border-color:#ffffff14}
+body[data-ds-dark-theme] .lkb_fundBadge{background:#ffffff1f;color:#c0c4cc}
+body[data-ds-dark-theme] .lkb_fundBadge[data-est="true"]{background:#b25e0930;color:#fbbf24}
+body[data-ds-dark-theme] .lkb_fundFlag{background:#3a2626;color:#ff8787;border-color:#e0313166}
+body[data-ds-dark-theme] .lkb_fundCostTag{color:#a5b4fc}
+body[data-ds-dark-theme] .lkb_fundDanger{color:#ff8787;border-color:#e0313166}
 `;
 (function injectStyle() {
 	if (typeof document === "undefined") return;
