@@ -1,15 +1,16 @@
 // 测试总入口。
 //
 // **为什么需要这个文件**：`package.json` 原来把各套件用 `&&` 串起来，于是
-// 「前一个失败 → 后面全部不执行」。上游既存的 p1-f10-longhu-test.mjs 是个日期脆性
-// 测试（会随真实日期过期），它一旦变红就会**静默跳过**它之后的所有套件 ——
-// 包括本插件新增的三个场外基金套件。也就是说：`npm test` 绿不绿，取决于那个
-// 脆性测试当天的心情，而被跳过的套件没有任何提示。
-//
-// 这里改成自己串行跑完**每一个**套件、逐个报告，最后统一给结论：
+// 「前一个失败 → 后面全部不执行」——任何一个套件变红都会**静默跳过**它之后的
+// 全部套件，被跳过的没有任何提示。这里改成自己串行跑完**每一个**套件、逐个报告，
+// 最后统一给结论：
 //   - 全部通过 → 退出码 0
 //   - 有任何失败 → 退出码 1，并列出失败清单
 // 单个套件失败不会阻止其余套件执行。
+//
+// 历史备注：曾有一个 KNOWN_UPSTREAM_RED 名单（p1-f10-longhu-test.mjs 日期脆性，
+// 随真实日期过期而假失败）。该套件已根治为与日期无关（fixture 相对 cnDateStr()
+// 推算），名单现在是空的。保留这个机制只为将来再遇到上游既存缺陷时能临时隔离。
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -17,8 +18,8 @@ import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** 已知的、与本插件无关的上游缺陷套件：失败时只警告，不计入失败退出码。 */
-const KNOWN_UPSTREAM_RED = new Set(["p1-f10-longhu-test.mjs"]);
+/** 已知的、与本插件无关的上游缺陷套件：失败时只警告，不计入失败退出码。当前为空。 */
+const KNOWN_UPSTREAM_RED = new Set();
 
 const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
 const suites = String(pkg.scripts?.["test:suites"] ?? "")

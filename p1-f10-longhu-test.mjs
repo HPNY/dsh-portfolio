@@ -10,6 +10,18 @@ import { EventEmitter } from "node:events";
 import { makeRoutes, ROUTES } from "./lib/index.js";
 import { fetchEmF10Main } from "./lib/emrank.js";
 import { resetRouteCachesForTests } from "./lib/route-cache.js";
+import { cnDateStr } from "./lib/calendar.js";
+
+/** 纯日历加减（UTC 算术，不受宿主机时区影响）。 */
+function shiftDays(iso, n) {
+	const [y, m, d] = String(iso).split("-").map(Number);
+	return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+// 所有 fixture 日期都从「中国的今天」推算，不再写死某一天 —— 否则日期一过期，
+// 回溯窗口内就没有数据了，用例会假失败（这正是它此前长期 KNOWN-RED 的原因）。
+const TODAY = cnDateStr();
+const D1 = shiftDays(TODAY, -1);
+
 
 let f10Calls = 0;
 let f10Url = "";
@@ -47,7 +59,7 @@ globalThis.fetch = async (url) => {
 	}
 	if (u.includes("RPT_DAILYBILLBOARD_DETAILSNEW")) {
 		longhuUrls.push(u);
-		// filter=(TRADE_DATE%3D%272026-10-09%27)
+		// filter=(TRADE_DATE%3D%27<请求日期>%27)
 		const hit = /TRADE_DATE%3D%27(\d{4}-\d{2}-\d{2})%27/.exec(u);
 		const d = hit === null ? "" : hit[1];
 		if (!longhuDates.has(d)) {
@@ -156,21 +168,21 @@ assert.match(json(res).error, /缺少参数 code/);
 console.log("== 3) /longhu 按请求日期回溯（date 参数必须生效） ==");
 // 每个场景前清空路由缓存，否则同一 URL 会命中上一个场景缓存下来的响应体。
 resetRouteCachesForTests();
-// 2026-10-09 是周五；2026-10-08 周四有数据、10-09 空 → 从 10-09 起回溯应命中 10-08。
-longhuDates = new Set(["2026-10-08"]);
+// 起点当天无数据、前一天有数据 → 从起点回溯应命中前一天。
+longhuDates = new Set([D1]);
 longhuUrls.length = 0;
 res = makeRes();
-await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=2026-10-09`), res);
+await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=${TODAY}`), res);
 assert.strictEqual(res.statusCode, 200);
 const lh = json(res);
-assert.strictEqual(lh.requestedDate, "2026-10-09", "响应回带请求的起点日期");
-assert.strictEqual(lh.date, "2026-10-08", "10-09 无榜单 → 回溯到 10-08");
+assert.strictEqual(lh.requestedDate, TODAY, "响应回带请求的起点日期");
+assert.strictEqual(lh.date, D1, "10-09 无榜单 → 回溯到 10-08");
 assert.strictEqual(lh.total, 1);
 // 关键回归：起点是请求日期，不是"今天"。旧实现会从今天倒推，第一次请求打的是
 // 今天而不是 10-09。
 assert.ok(longhuUrls.length > 0, "必须真的打了上游");
 assert.ok(
-	longhuUrls[0].includes("TRADE_DATE%3D%272026-10-09%27"),
+	longhuUrls[0].includes(`TRADE_DATE%3D%27${TODAY}%27`),
 	`首个上游请求必须以请求日期为起点（实际：${longhuUrls[0].slice(0, 120)}）`
 );
 const row = lh.rows[0];
@@ -185,28 +197,28 @@ assert.strictEqual(row.reason, "日涨幅偏离值达7%的证券");
 
 resetRouteCachesForTests();
 // 起点当天就有数据：不该回溯（首个请求就命中 10-09）
-longhuDates = new Set(["2026-10-09"]);
+longhuDates = new Set([TODAY]);
 longhuUrls.length = 0;
 res = makeRes();
-await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=2026-10-09`), res);
+await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=${TODAY}`), res);
 assert.strictEqual(res.statusCode, 200);
-assert.strictEqual(json(res).date, "2026-10-09", "起点当天有数据就直接命中");
+assert.strictEqual(json(res).date, TODAY, "起点当天有数据就直接命中");
 assert.strictEqual(longhuUrls.length, 1, "命中后不再多打上游");
 
 resetRouteCachesForTests();
 // 回溯是**只往过去**的：以 10-08 为起点时，即便 10-09 有数据也不该向前看。
 // 这条语义是刻意的——"当日榜单盘后才发布，所以看最近已发布的那个交易日"，
 // 向前取等于把未来的数据当成用户要的那一天。
-longhuDates = new Set(["2026-10-09"]);
+longhuDates = new Set([TODAY]);
 res = makeRes();
-await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=2026-10-08`), res);
+await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=${D1}`), res);
 assert.strictEqual(res.statusCode, 502, "起点之后的数据不得被向前取用");
 assert.match(json(res).error, /[\u4e00-\u9fa5]/, "错误文案必须是中文");
 
 resetRouteCachesForTests();
 // 非法日期必须 400，而不是静默换成今天
 for (const bad of ["garbage", "2026-13-01", "2026-02-30", "20261009"]) {
-	longhuDates = new Set(["2026-10-09"]);
+	longhuDates = new Set([TODAY]);
 	res = makeRes();
 	await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=${bad}`), res);
 	assert.strictEqual(res.statusCode, 400, `?date=${bad} 必须 400`);
@@ -215,7 +227,7 @@ for (const bad of ["garbage", "2026-13-01", "2026-02-30", "20261009"]) {
 
 resetRouteCachesForTests();
 // 不传 date = 中国的今天（用服务端口径算，避免宿主机时区差异）
-longhuDates = new Set(["2026-10-09"]);
+longhuDates = new Set([TODAY]);
 res = makeRes();
 await longhuRoute.handler(makeGet(ROUTES.longhu), res);
 assert.strictEqual(res.statusCode, 200, "不传 date 仍可用");
@@ -225,7 +237,7 @@ resetRouteCachesForTests();
 // 全程无数据 → 报"取不到"，不能返回空表充数
 longhuDates = new Set();
 res = makeRes();
-await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=2026-10-09`), res);
+await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=${TODAY}`), res);
 assert.strictEqual(res.statusCode, 502, "回溯窗口内无数据必须报错");
 assert.match(json(res).error, /[\u4e00-\u9fa5]/, "错误文案必须是中文");
 
