@@ -47,7 +47,7 @@ const SEARCH_TYPE_META = {
  * badges, live quote chips (price + change %) and star actions — instead
  * of the old plain name/code rows.
  */
-function SearchResultsCard({ hits, loading, error, source, kw, watchSet, onOpen, onClear }) {
+function SearchResultsCard({ hits, loading, error, source, kw, watchSet, onOpen, onOpenFund, onClear }) {
 	return h(
 		"div",
 		{
@@ -76,7 +76,7 @@ function SearchResultsCard({ hits, loading, error, source, kw, watchSet, onOpen,
 			? h("div", { className: "lkb-srEmpty" }, "⚠ 搜索服务暂时不可用，稍后再试")
 			: null,
 		!loading && !error && hits.length === 0
-			? h("div", { className: "lkb-srEmpty" }, "没有找到匹配的股票 / ETF / 可转债。试试代码、名称关键字或拼音首字母（如 gzmt）")
+			? h("div", { className: "lkb-srEmpty" }, "没有找到匹配的股票 / ETF / 可转债 / 基金。试试代码、名称关键字或拼音首字母（如 600519、gzmt、005827）")
 			: null,
 		hits.length > 0
 			? h(
@@ -90,7 +90,7 @@ function SearchResultsCard({ hits, loading, error, source, kw, watchSet, onOpen,
 							{
 								key: s.quoteId || s.code,
 								className: "lkb-srItem",
-								onClick: (e) => openOnRow(e, onOpen, s.code, s.name),
+								onClick: (e) => openOnRow(e, s.fund === true ? onOpenFund : onOpen, s.code, s.name),
 							},
 							h("span", { className: "lkb-srBadge " + tm.cls }, tm.label),
 							h(
@@ -119,7 +119,7 @@ function SearchResultsCard({ hits, loading, error, source, kw, watchSet, onOpen,
 	);
 }
 
-export function MarketTab({ onOpen, watchCodes }) {
+export function MarketTab({ onOpen, onOpenFund, watchCodes }) {
 	const [kw, setKw] = useState("");
 	const [hits, setHits] = useState([]);
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -174,16 +174,21 @@ export function MarketTab({ onOpen, watchCodes }) {
 		setSearchLoading(true);
 		setSearchError(false);
 		debounceRef.current = setTimeout(() => {
-			api(API.search + `?kw=${encodeURIComponent(k)}&count=20`)
-				.then((data) => {
+			// 股票与场外基金一起查：股票走本地索引 + 东财 suggest，基金走东财基金搜索。
+			// 两个源各自容错（坏一个不影响另一个）；同一代码两边都命中时保留股票条（更完整）。
+			Promise.allSettled([
+				api(API.search + `?kw=${encodeURIComponent(k)}&count=20`),
+				api(API.otcFundSearch + `?q=${encodeURIComponent(k)}`),
+			])
+				.then(([stock, fund]) => {
 					if (seq !== searchSeq.current) return;
-					setHits(data.hits ?? []);
-					setSearchSource(data.source ?? "");
-				})
-				.catch(() => {
-					if (seq !== searchSeq.current) return;
-					setHits([]);
-					setSearchError(true);
+					const stockHits = stock.status === "fulfilled" ? (stock.value?.hits ?? []) : [];
+					const fundHits = fund.status === "fulfilled" ? (fund.value?.results ?? []) : [];
+					const seen = new Set(stockHits.map((s) => s.code));
+					const merged = stockHits.concat(fundHits.filter((f) => !seen.has(f.code)).map((f) => ({ ...f, type: "fund", fund: true })));
+					setHits(merged);
+					setSearchSource(stock.status === "fulfilled" ? (stock.value.source ?? "") : "");
+					setSearchError(stock.status === "rejected" && fund.status === "rejected");
 				})
 				.finally(() => {
 					if (seq !== searchSeq.current) return;
@@ -318,6 +323,10 @@ export function MarketTab({ onOpen, watchCodes }) {
 							onOpen: (code, name) => {
 								setSearchOpen(false);
 								onOpen(code, name);
+							},
+							onOpenFund: (code, name) => {
+								setSearchOpen(false);
+								onOpenFund(code, name);
 							},
 							onClear: () => setKw(""),
 						})

@@ -488,14 +488,31 @@ body[data-ds-dark-theme] .lkb_settingsBox{background:#3a3a3c;border-color:#fffff
    （白底圆角、11px 表头、行分隔线、悬停左侧主色条），不再需要卡片/grid 样式。 */
 .lkb_fundAddRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 .lkb_fundDim{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11.5px;font-variant-numeric:tabular-nums}
-/* 展开行：整行一个 td（colSpan=8），表格默认的 nowrap/右对齐在这里要放开 */
-.lkb_fundDetailCell{white-space:normal;text-align:left;padding:10px 12px;cursor:auto}
+/* ---- 基金详情浮窗（点行打开，与自选的股票详情窗同一套 chrome） ---- */
+/* 显式给白色底：.lkb-win 的背景是 --dsw-alias-bg-overlay（当前主题下是浅灰），
+   股票详情里它被白色卡片完全盖住、看不出来；基金页卡片之间有缝隙会露灰底，
+   看着和股票详情不一致。这里按股票那一侧统一成 bg-base 白。 */
+.lkb-fundBody{padding:14px 16px;display:flex;flex-direction:column;gap:14px;overflow:auto;background:var(--dsw-alias-bg-base,#fff)}
+/* 区间切换 chips：挂在 .lkb-chartTitle 的右侧（与股票详情 K 线标题右侧的周期按钮同位） */
+.lkb-fundRanges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.lkb-fundChartWrap{position:relative}
+.lkb-fundDetailChart{display:block;width:100%;border-radius:10px;background:var(--dsw-alias-bg-layer-1,#f7f8fa)}
+.lkb-fundTick{position:absolute;right:6px;font-size:10px;line-height:1;color:var(--dsw-alias-label-tertiary,#a2a7b3);transform:translateY(-50%);pointer-events:none;font-variant-numeric:tabular-nums}
+.lkb-fundActions{display:flex;justify-content:flex-end;gap:8px}
+/* 基金持仓（前十大重仓股）：名称 / 代码 / 占比条 / 占净值% / 实时涨跌 / 较上期 */
+.lkb-fundPos{display:flex;flex-direction:column}
+.lkb-fundPosRow{display:flex;align-items:center;gap:10px;padding:5px 2px;border-bottom:1px solid var(--dsw-alias-border-l1,#f2f3f5)}
+.lkb-fundPosRow:last-child{border-bottom:0}
+.lkb-fundPosName{max-width:132px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--dsw-alias-label-primary,#1c1e26)}
+.lkb-fundPosBar{flex:1;min-width:36px;height:5px;border-radius:99px;background:var(--dsw-alias-bg-layer-1,#eceef1);overflow:hidden}
+.lkb-fundPosFill{height:100%;border-radius:99px;background:#4c6ef5}
+.lkb-fundPosWeight{min-width:56px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary,#5f6672)}
+.lkb-fundPosChange{min-width:58px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums}
+body[data-ds-dark-theme] .lkb-fundPosFill{background:#6378dc}
 .lkb_fundFlag{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;background:#fff6f6;color:#d92d20;border:1px solid #f3b0b0;white-space:nowrap}
 .lkb_fundNavVal{font-size:13px;font-weight:700;color:var(--dsw-alias-label-primary,#1c1e26)}
 .lkb_fundBadge{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;white-space:nowrap;background:var(--dsw-alias-bg-layer-1,#f2f3f5);color:var(--dsw-alias-label-secondary,#6b7280)}
 .lkb_fundBadge[data-est="true"]{background:#fff4e6;color:#b25e09}
-/* 展开行内容：间距由 .lkb_fundDetailCell 的 padding 提供，这里不要再叠 margin/border */
-.lkb_fundDetail{margin-top:0;padding-top:0;border-top:0;display:flex;flex-direction:column;gap:9px}
 .lkb_fundEdit{display:flex;flex-direction:column;gap:8px}
 .lkb_fundEditGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
 .lkb_fundField{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--dsw-alias-label-secondary,#5f6672)}
@@ -503,12 +520,10 @@ body[data-ds-dark-theme] .lkb_settingsBox{background:#3a3a3c;border-color:#fffff
 .lkb_fundDanger{color:#d92d20;border-color:#f3b0b0}
 .lkb_fundEditErr{padding:0;text-align:left}
 .lkb_fundChart{display:flex;flex-direction:column;gap:2px}
-.lkb_fundChartSvg{display:block;width:100%;height:168px;border-radius:8px;background:var(--dsw-alias-bg-layer-1,#f7f8fa)}
 .lkb_fundChartAxis{display:flex;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--dsw-alias-label-tertiary,#a2a7b3);font-variant-numeric:tabular-nums}
 .lkb_fundCostTag{color:#4263eb;font-weight:600}
 .lkb_fundChartEmpty{height:120px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--dsw-alias-label-tertiary,#a2a7b3);background:var(--dsw-alias-bg-layer-1,#f7f8fa);border-radius:8px}
-@media (prefers-reduced-motion:reduce){.lkb_fundChartSvg{transition:none}}
-body[data-ds-dark-theme] .lkb_fundChartSvg,body[data-ds-dark-theme] .lkb_fundChartEmpty{background:#3a3a3c;border-color:#ffffff14}
+body[data-ds-dark-theme] .lkb-fundDetailChart,body[data-ds-dark-theme] .lkb_fundChartEmpty{background:#3a3a3c;border-color:#ffffff14}
 body[data-ds-dark-theme] .lkb_fundBadge{background:#ffffff1f;color:#c0c4cc}
 body[data-ds-dark-theme] .lkb_fundBadge[data-est="true"]{background:#b25e0930;color:#fbbf24}
 body[data-ds-dark-theme] .lkb_fundFlag{background:#3a2626;color:#ff8787;border-color:#e0313166}

@@ -26,6 +26,9 @@ export const API = {
 	analysisStream: "/api/leekbox/analysis/analyze/stream",
 	analysisModels: "/api/leekbox/analysis/models",
 	otcFundSnapshot: "/api/leekbox/otc-fund/snapshot",
+	otcFundHistory: "/api/leekbox/otc-fund/history",
+	otcFundSearch: "/api/leekbox/otc-fund/search",
+	otcFundPositions: "/api/leekbox/otc-fund/positions",
 	otcFundMutate: "/api/leekbox/otc-fund/mutate",
 };
 

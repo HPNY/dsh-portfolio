@@ -519,6 +519,7 @@ export function WatchlistTab({ onOpen, bump }) {
 					h("th", { title: "点击单元格设置持仓数量（股）" }, "持仓"),
 					h("th", { title: "点击单元格设置成本价" }, "成本"),
 					h("th", { title: "浮动盈亏（按现价与成本实时计算）" }, "盈亏"),
+					h("th", { title: "昨日收盘价（涨跌幅的计算基准）" }, "昨收"),
 					h("th", null, "今开"),
 					h("th", null, "最高/最低"),
 					h("th", null, "成交额"),
@@ -558,6 +559,7 @@ export function WatchlistTab({ onOpen, bump }) {
 								? "—"
 								: h("span", null, fmtSign(pl), " ", h("span", { className: "lkb-code" }, fmtPct(plPct)))
 						),
+						h("td", null, fmt(q?.prevClose)),
 						h("td", null, fmt(q?.open)),
 						h("td", null, fmt(q?.high), " / ", fmt(q?.low)),
 						h("td", null, q?.amount === null || q?.amount === void 0 ? "—" : fmtAmount((q.amount ?? 0) * 10000)),

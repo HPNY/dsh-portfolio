@@ -11,6 +11,7 @@ import { AnalysisTab } from "./analysis-tab.js";
 import { OtcFundTab } from "./otc-fund-tab.js";
 import { SettingsDialog } from "./settings.js";
 import { StockDetailWindow } from "./detail.js";
+import { FundDetailWindow } from "./fund-detail.js";
 import { DISPLAY_NAME } from "../../lib/identity.js";
 import { BRAND_ICON_SVG } from "./icon.js";
 
@@ -192,12 +193,41 @@ export function PortfolioPanel({ onClose }) {
 			const zz = bumpZ();
 			return prev.map((w) => (w.id === id ? { ...w, z: zz } : w));
 		});
+	// 基金详情窗：接受整行快照（基金页点行）或 (code, name)（行情页搜索结果）。
+	const openFund = useCallback((raw, maybeName) => {
+		const fund = typeof raw === "object" && raw !== null ? raw : { code: raw, name: maybeName };
+		const code = String(fund?.code ?? "");
+		if (!/^\d{6}$/.test(code)) return;
+		setWins((prev) => {
+			const exist = prev.find((w) => w.kind === "fund" && w.code === code);
+			const z = bumpZ();
+			if (exist) return prev.map((w) => (w.id === exist.id ? { ...w, fund, z: zSeq.current } : w));
+			const k = prev.length % 6;
+			const wx = Math.max(8, Math.round((window.innerWidth - 760) / 2)) + k * 28;
+			const wy = Math.max(8, Math.round((window.innerHeight - 620) / 2)) + k * 26;
+			return [
+				...prev,
+				{
+					id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+					kind: "fund",
+					code,
+					name: fund?.name ?? code,
+					fund,
+					x: wx,
+					y: wy,
+					z: z,
+				},
+			];
+		});
+	}, []);
 	const closeWin = (id) => setWins((prev) => prev.filter((w) => w.id !== id));
 	const closeTopWin = () => setWins((prev) => {
 		const top = topWindow(prev);
 		return top === null ? prev : prev.filter((w) => w.id !== top.id);
 	});
 	const bumpWatch = () => setWatchBump((v) => v + 1);
+	const [fundBump, setFundBump] = useState(0);
+	const bumpFund = () => setFundBump((v) => v + 1);
 	// In-panel confirm dialog host (replaces native window.confirm).
 	const [confirmReq, setConfirmReq] = useState(null);
 	// 预警 toast：AlertWatcher 常驻在 entry.js（随插件而不是随面板存活），
@@ -293,7 +323,7 @@ export function PortfolioPanel({ onClose }) {
 		tab === "indices"
 			? h(IndicesTab, { onOpen: openStock })
 			: tab === "market"
-				? h(MarketTab, { onOpen: openStock, watchCodes })
+				? h(MarketTab, { onOpen: openStock, onOpenFund: openFund, watchCodes })
 				: tab === "watchlist"
 					? h(WatchlistTab, { onOpen: openStock, bump: watchBump })
 					: tab === "screener"
@@ -301,7 +331,7 @@ export function PortfolioPanel({ onClose }) {
 						: tab === "analysis"
 							? h(AnalysisTab, { onOpen: openStock, configured: analysisCfg.configured, onOpenSettings: () => setSettingsOpen(true) })
 							: tab === "otcFund"
-								? h(OtcFundTab, {})
+								? h(OtcFundTab, { onOpen: openFund, bump: fundBump })
 								: h(NewsTab, { onOpen: openStock });
 	return h(
 		"div",
@@ -376,18 +406,31 @@ export function PortfolioPanel({ onClose }) {
 			)
 		),
 		wins.map((w) =>
-			h(StockDetailWindow, {
-				key: w.id,
-				code: w.code,
-				name: w.name,
-				isIndex: w.isIndex,
-				x: w.x,
-				y: w.y,
-				z: w.z,
-				onFocus: () => focusWin(w.id),
-				onClose: () => closeWin(w.id),
-				onWatched: bumpWatch,
-			})
+			w.kind === "fund"
+				? h(FundDetailWindow, {
+						key: w.id,
+						fund: w.fund,
+						x: w.x,
+						y: w.y,
+						z: w.z,
+						onFocus: () => focusWin(w.id),
+						onClose: () => closeWin(w.id),
+						onChanged: () => {
+							bumpFund();
+						},
+					})
+				: h(StockDetailWindow, {
+						key: w.id,
+						code: w.code,
+						name: w.name,
+						isIndex: w.isIndex,
+						x: w.x,
+						y: w.y,
+						z: w.z,
+						onFocus: () => focusWin(w.id),
+						onClose: () => closeWin(w.id),
+						onWatched: bumpWatch,
+					})
 		),
 		settingsOpen ? h(SettingsDialog, { onClose: () => setSettingsOpen(false) }) : null,
 		confirmReq === null ? null : h(ConfirmDialog, { text: confirmReq.text }),

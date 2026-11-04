@@ -66,6 +66,8 @@ const live = {
 };
 /** 估值榜返回的行（null 表示「暂无数据」）。 */
 let gzListRows = null;
+/** 模拟东财前十大重仓接口的限流（ErrCode 61136403）。 */
+let posThrottled = false;
 
 /** 真实结构的 fixture：BOM + 注释 + 多个 var，与线上逐字节同构。 */
 function pingzhongFixture({ name = "融通医疗保健行业混合A/B", points } = {}) {
@@ -139,6 +141,23 @@ globalThis.fetch = async (input, init = {}) => {
 			Success: true,
 		});
 	}
+	// 基金的前十大重仓（东财移动端）：含沪/深/港三种，验证交易所映射与"港股不给行情"
+	if (url.includes("FundMNInverstPosition")) {
+		if (posThrottled) {
+			return jsonBody({ Datas: null, ErrCode: 61136403, Success: false, ErrMsg: "网络繁忙，请稍后重试！" });
+		}
+		return jsonBody({
+			Datas: {
+				fundStocks: [
+					{ GPDM: "600519", GPJC: "贵州茅台", JZBL: "6.37", TEXCH: "1", PCTNVCHGTYPE: "增持", PCTNVCHG: "0.75" },
+					{ GPDM: "00700", GPJC: "腾讯控股", JZBL: "6.06", TEXCH: "5", PCTNVCHGTYPE: "增持", PCTNVCHG: "0.34" },
+					{ GPDM: "000568", GPJC: "泸州老窖", JZBL: "4.58", TEXCH: "2", PCTNVCHGTYPE: "减持", PCTNVCHG: "-0.04" },
+				],
+			},
+			ErrCode: 0,
+			Success: true,
+		});
+	}
 	// 腾讯行情 stub（合并浮盈已移除，保留以防意外打真实网络）
 	if (url.includes("qt.gtimg.cn")) {
 		return new Response('v_sh600519="1~贵州茅台~600519~1500.00";v_sz000001="1~平安银行~000001~11.50";', { status: 200 });
@@ -152,6 +171,7 @@ function reset(overrides = {}) {
 	resetFundSourceHealthForTests();
 	calls = [];
 	gzListRows = null;
+	posThrottled = false;
 	Object.assign(live, { pingzhong: true, pingzhongCodes: null, gzlist: true, fundgz: true, fundmob: true }, overrides);
 }
 
@@ -638,6 +658,100 @@ await okAsync("snapshot：非本机来源 → 403", async () => {
 	await routeFor(routes, FUND_ROUTES.otcFundSnapshot).handler(req, res);
 	assert.equal(res.statusCode, 403);
 	assert.match(JSON.parse(res.payload).error, /仅允许本机请求/);
+});
+
+await okAsync("history：历史净值 + 阶段涨幅（口径在 Host，客户端只渲染）", async () => {
+	reset({ gzlist: false, fundgz: false });
+	const routes = makeOtcFundRoutes({}, { dshHome: "C:/tmp/dsh-home", store: fakeStore() });
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundHistory}?code=161616`, headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundHistory).handler(req, res);
+	assert.equal(res.statusCode, 200);
+	const body = JSON.parse(res.payload);
+	assert.deepEqual(
+		Object.keys(body).sort(),
+		["code", "estimateAvailable", "estimateNav", "estimateTime", "fund", "latestDate", "latestNav", "name", "navHistory", "stageReturns", "tracked", "updatedAt"]
+	);
+	assert.equal(body.code, "161616");
+	assert.deepEqual(Object.keys(body.stageReturns).sort(), ["d1", "m1", "m3", "m6", "since", "y1", "y3"]);
+	assert.ok(Array.isArray(body.navHistory), "必须给出历史净值数组（详情页要画曲线）");
+	assert.match(body.updatedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+08:00$/);
+	// 持仓字段必须由 Host 从持仓文件算好带出来（详情页「我的持仓」直接渲染它）：
+	// 调用方从行情页搜索打开时只带 {code,name}，靠 prop 会整片显示"—"。
+	assert.equal(body.tracked, false, "空持仓 → tracked 为 false");
+	assert.equal(body.fund.shares, null);
+	assert.equal(body.fund.costNav, null);
+	assert.deepEqual(
+		Object.keys(body.fund).sort(),
+		["code", "costNav", "distanceToCostPct", "estimateAvailable", "estimateNav", "estimateTime", "latestDate", "latestNav", "marketValue", "name", "neededRisePct", "pnl", "shares", "stale", "unwindProgressPct", "unwound"]
+	);
+});
+
+await okAsync("history：已有持仓时 tracked=true，份额/成本/市值/浮盈照常算", async () => {
+	reset({ gzlist: false, fundgz: false });
+	const store = fakeStore({ holdings: { "161616": { shares: 1000, costNav: 1.5 } }, navSnapshots: {}, navHistory: {} });
+	const routes = makeOtcFundRoutes({}, { dshHome: "C:/tmp/dsh-home", store });
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundHistory}?code=161616`, headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundHistory).handler(req, res);
+	const body = JSON.parse(res.payload);
+	assert.equal(body.tracked, true, "在持仓里 → tracked 为 true（按钮显示「移出」）");
+	assert.equal(body.fund.shares, 1000);
+	assert.equal(body.fund.costNav, 1.5);
+	assert.equal(body.fund.marketValue, 1606, "市值 = 份额 × 最新净值");
+	assert.ok(Math.abs(body.fund.pnl - 106) < 1e-9);
+});
+
+await okAsync("positions：前十大重仓 + 实时涨跌（港股不给行情，不编造）", async () => {
+	reset({ gzlist: false, fundgz: false });
+	const routes = makeOtcFundRoutes({}, { dshHome: "C:/tmp/x", store: fakeStore(), quoteProvider: async () => new Map([["sh600519", { price: 1500, changePct: 1.2 }]]) });
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundPositions}?code=005827`, headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundPositions).handler(req, res);
+	assert.equal(res.statusCode, 200);
+	const body = JSON.parse(res.payload);
+	assert.equal(body.code, "005827");
+	assert.ok(Array.isArray(body.positions) && body.positions.length > 0, "必须给出重仓股列表");
+	assert.deepEqual(Object.keys(body.positions[0]).sort(), ["changePct", "changeType", "changeVsPrev", "code", "exchange", "name", "price", "weight"]);
+	// 只喂了 sh600519 的报价：那一条应取到现价/涨跌幅，其余保持 null
+	const mt = body.positions.find((p) => p.code === "600519");
+	assert.equal(mt.price, 1500);
+	assert.equal(mt.changePct, 1.2);
+	const other = body.positions.find((p) => p.code !== "600519");
+	assert.equal(other.price, null, "拿不到行情就给 null，不能编造");
+	assert.equal(other.changePct, null);
+});
+
+await okAsync("positions：非法 code → 400", async () => {
+	const routes = makeOtcFundRoutes({}, { dshHome: "C:/tmp/x", store: fakeStore() });
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundPositions}?code=xx`, headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundPositions).handler(req, res);
+	assert.equal(res.statusCode, 400);
+});
+
+await okAsync("positions：接口限流（Datas:null）→ 502，不伪装成「没有持仓」", async () => {
+	// ErrCode 61136403「网络繁忙」是**取不到**，不是**没有**：若返回空列表，
+	// 界面会显示「暂无持仓披露数据」，把一次限流伪装成"这只基金没有重仓股"。
+	reset();
+	posThrottled = true;
+	const routes = makeOtcFundRoutes({}, { dshHome: "C:/tmp/x", store: fakeStore(), quoteProvider: async () => new Map() });
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundPositions}?code=005827`, headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundPositions).handler(req, res);
+	assert.equal(res.statusCode, 502, "限流必须如实报错，而不是 200 + 空列表");
+	assert.match(JSON.parse(res.payload).error, /网络繁忙|请稍后重试/);
+});
+
+await okAsync("history：非法 code → 400（不悄悄回退成默认基金）", async () => {
+	reset();
+	const routes = makeOtcFundRoutes({}, { dshHome: "C:/tmp/x", store: fakeStore() });
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundHistory}?code=abc`, headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundHistory).handler(req, res);
+	assert.equal(res.statusCode, 400);
+	assert.match(JSON.parse(res.payload).error, /基金代码无法识别/);
+});
+
+await okAsync("history：方法不对 → 405", async () => {
+	const routes = makeOtcFundRoutes({}, { dshHome: "C:/tmp/x", store: fakeStore() });
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundHistory}?code=161616`, method: "POST", headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundHistory).handler(req, res);
+	assert.equal(res.statusCode, 405);
 });
 
 await okAsync("snapshot：方法不对 → 405", async () => {

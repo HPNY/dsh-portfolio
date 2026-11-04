@@ -7,7 +7,7 @@
 //      require("...")（宿主自带 React，打进产物就是双 React 事故）；
 //   3. factory(require) 用桩 React 跑完模块顶层代码（顶层不碰 DOM，
 //      样式注入有 document 守卫），返回 { apply, inject }。
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const src = readFileSync(new URL("./lib/client.js", import.meta.url), "utf8");
 
@@ -125,7 +125,63 @@ check(
 	"基金列表用真正的表格（table + thead + tbody）",
 	src.includes('"table"') && src.includes('"thead"') && src.includes('"tbody"')
 );
-check("展开行用 colSpan 合并整行（7 列）", src.includes("colSpan: 7"));
+// 点基金行 → 打开基金详情浮窗（与自选点行开详情窗同一套交互）；旧的行内编辑页已删除。
+check(
+	"点基金行打开详情浮窗（旧编辑页已删除）",
+	src.includes("function FundDetailWindow(") &&
+		src.includes("onClick: () => onOpen(fund)") &&
+		!src.includes("FundEditForm") &&
+		!src.includes("colSpan: 7")
+);
+check(
+	"基金详情浮窗走 Host 的 history 接口（阶段涨幅由 Host 算）",
+	src.includes("otcFundHistory") && src.includes("stageReturns")
+);
+// 行情页搜索要能查场外基金；详情浮窗的「加入基金」是唯一入口，旧的「＋ 添加基金」表单已删。
+//
+// 断言必须锁 **API 表里登记的那一条**，不能只查字符串"otcFundSearch"是否存在：
+// `api(API.otcFundSearch ...)` 里的属性名是同一个字符串，光查存在会把"表里没登记"
+// 这个 bug 放过去 —— 实测后果是请求打到 /undefined?q=… 404，搜索框永远"无匹配结果"。
+check(
+	"行情页搜索合并场外基金结果（点基金条开基金详情窗）",
+	src.includes('otcFundSearch: "/api/leekbox/otc-fund/search"') && src.includes("s.fund === true ? onOpenFund : onOpen")
+);
+// 系统性守卫：src/client 里用到的每一个 API.<key> 都必须在 core.js 的 API 表里登记。
+// 「表里没登记」的表现是 `API.xxx` 变 undefined、请求打到 /undefined?... 404，
+// 界面只会安静地显示"无匹配结果"，很难定位 —— 上面那个 bug 就属于这一类。
+{
+	const apiSrc = readFileSync(new URL("./src/client/core.js", import.meta.url), "utf8");
+	const mapBody = /export const API = \{([\s\S]*?)\n\};/.exec(apiSrc)?.[1] ?? "";
+	const declared = new Set([...mapBody.matchAll(/^\t([A-Za-z0-9_]+):/gm)].map((m) => m[1]));
+	const used = new Set();
+	const dir = new URL("./src/client/", import.meta.url);
+	for (const f of readdirSync(dir)) {
+		if (!f.endsWith(".js")) continue;
+		const body = readFileSync(new URL(f, dir), "utf8");
+		for (const m of body.matchAll(/\bAPI\.([A-Za-z0-9_]+)/g)) used.add(m[1]);
+	}
+	const missing = [...used].filter((k) => !declared.has(k)).sort();
+	check("src/client 用到的 API.<key> 都在 core.js 的 API 表里登记", missing.length === 0, `未登记: ${missing.join(", ") || "无"}`);
+}
+check(
+	"详情浮窗有「加入基金 / 移出基金」按钮，且「＋ 添加基金」入口已删除",
+	src.includes("加入基金") &&
+		src.includes("移出基金") &&
+		!src.includes("AddFundForm") &&
+		!src.includes("＋ 添加基金")
+);
+// 基金详情浮窗必须与股票详情窗用同一套卡片语言（.lkb-chartBox + .lkb-chartTitle + .lkb-detailQuote），
+// 不允许再出现自定义的 hero 排版——那是"看着不像同一个产品"的来源。
+{
+	const fundSrc = readFileSync(new URL("./src/client/fund-detail.js", import.meta.url), "utf8");
+	check(
+		"基金详情与股票详情同款卡片语言（chartBox / chartTitle / detailQuote）",
+		fundSrc.includes('className: "lkb-chartBox"') &&
+			fundSrc.includes('className: "lkb-chartTitle"') &&
+			fundSrc.includes('className: "lkb-detailQuote"') &&
+			!fundSrc.includes("lkb-fundHero")
+	);
+}
 // 成本与份额必须是两列，不能挤在一个单元格里
 check("成本、份额是两个独立表头", src.includes('}, "成本"),') && src.includes('}, "份额"),'));
 // 两列的修改方式与自选页一致：点单元格 -> .lkb-input，复用 .lkb-posCell 观感
@@ -148,6 +204,9 @@ check(
 		src.includes('"浮动盈亏 ", h("b", { className: trend(fundPnl)') &&
 		src.includes('"收益率 ", h("b", { className: trend(returnPct)')
 );
+// 自选表格的「昨收」列：表头 + 数据单元格都要在，且取的是行情的 prevClose 字段。
+// 注意详情弹窗里也有"昨收"，但那走的是 item(...) 助手，用 td 写法区分。
+check("自选表格有「昨收」列（行情字段 prevClose）", src.includes('}, "昨收"),') && src.includes('h("td", null, fmt(q?.prevClose))'));
 // 列调整：表头「盈亏百分比」简化为「盈亏」；「解套需涨」「解套进度」两列都已删除。
 // 注意 tooltip 里仍会描述"盈亏百分比"这个含义，所以只断言表头写法，不否证整个词。
 check("表头为「盈亏」（且不再有解套需涨 / 解套进度两列）", src.includes('}, "盈亏"),') && !src.includes("解套需涨") && !src.includes("解套进度"));
