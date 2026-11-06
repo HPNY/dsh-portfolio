@@ -146,6 +146,15 @@ check(
 	"行情页搜索合并场外基金结果（点基金条开基金详情窗）",
 	src.includes('otcFundSearch: "/api/leekbox/otc-fund/search"') && src.includes("s.fund === true ? onOpenFund : onOpen")
 );
+// README 必须给出可直接复制的标准安装命令 `dsh plugin --profile web add <spec>`。
+// 早期这里只有 mklink / pnpm add file: 的写法，市场爬虫扫不到标准命令会判定不通过。
+{
+	const readme = readFileSync(new URL("./README.md", import.meta.url), "utf8");
+	check(
+		"README 含标准安装命令 dsh plugin --profile web add（市场可扫描）",
+		/dsh plugin --profile web add github:HPNY\/dsh-portfolio/.test(readme)
+	);
+}
 // 系统性守卫：src/client 里用到的每一个 API.<key> 都必须在 core.js 的 API 表里登记。
 // 「表里没登记」的表现是 `API.xxx` 变 undefined、请求打到 /undefined?... 404，
 // 界面只会安静地显示"无匹配结果"，很难定位 —— 上面那个 bug 就属于这一类。

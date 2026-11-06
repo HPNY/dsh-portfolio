@@ -33,6 +33,7 @@
 - [构建产物与源码必须一致](#构建产物与源码必须一致)
 - [环境要求](#环境要求)
 - [安装](#安装)
+- [安装细节](#安装细节)
 - [结构](#结构)
 - [常见问题](#常见问题)
 - [相关链接](#相关链接)
@@ -58,27 +59,36 @@
 - 🤖 **AI 个股分析** — 服务端汇总实时行情 + 近 60 日 K 线 + F10 财务后送模型，输出结构化中文分析（含风险提示）；支持 DeepSeek / OpenAI / Anthropic Claude / Moonshot Kimi / 智谱 / 通义 等服务商。
 - 🔎 **毫秒级全市场搜索** — 约 8 千只标的的本地索引，代码 / 名称 / 拼音首字母匹配，结果卡带实时价格。
 
+## 安装
+
+一条命令装到 **web profile**：
+
+```bash
+dsh plugin --profile web add github:HPNY/dsh-portfolio
+```
+
+装完刷新浏览器，侧边栏出现「持仓看板」入口（线框柱状图图标）。
+
+`dsh.bundle` manifest 与 `cordis.patch.yml` 都在包里，`dsh plugin add` 会自动注册插件行并重组合，**不需要手工编辑任何配置文件**。客户端 bundle（`lib/client.js`）已随仓库提交，源码安装也**无需构建**，不会触发 `allowBuilds` 构建授权。
+
+> 没有 npm 包，所以用 `github:` 前缀直装；若日后发布到 npm，命令就是 `dsh plugin --profile web add dsh-portfolio`。
+
+要求 DSH ≥ 0.1.1-rc.1、**web profile**。手动安装与常见坑见[安装细节](#安装细节)。
+
 ## 快速开始
 
 ```bash
-# 1) 拿代码
-git clone https://github.com/SuCriss/dsh-leekbox.git
+# 1) 一条命令装好（自动注册 + 热重组合）
+dsh plugin --profile web add github:HPNY/dsh-portfolio
 
-# 2) 链进 web profile 的 node_modules
+# 2) 若想跑本地的开发副本，改用软链（Windows 用 mklink /J）：
 #    Windows
-mklink /J "%DSH_HOME%\profiles\web\node_modules\dsh-leekbox" "<仓库路径>"
+mklink /J "%DSH_HOME%\profiles\web\node_modules\dsh-portfolio" "<本仓库路径>"
 #    macOS / Linux
-ln -s "<仓库路径>" "$DSH_HOME/profiles/web/node_modules/dsh-leekbox"
+ln -s "<本仓库路径>" "$DSH_HOME/profiles/web/node_modules/dsh-portfolio"
 
-# 3) 在 $DSH_HOME/profiles/web/cordis.patch.yml 追加一行注册：
-#    - insert:
-#        - id: leekbox
-#          name: 'dsh-leekbox'
-
-# 4) profile watcher 约 1 秒内热重组合；刷新浏览器，侧边栏出现「持仓看板」入口
+# 3) 然后刷新浏览器，侧边栏出现「持仓看板」入口
 ```
-
-细节与常见坑见[安装](#安装)。要求 DSH ≥ 0.1.1-rc.1、**web profile**。
 
 ## 七个标签页
 
@@ -163,21 +173,40 @@ ln -s "<仓库路径>" "$DSH_HOME/profiles/web/node_modules/dsh-leekbox"
 - 仅运行于 **web profile**（`dsh.client.platform: "web"`）：服务端路由随宿主进程运行，浏览器端经同源 `/api/leekbox/*` 访问（仅限本机 loopback）
 - Node.js ≥ 20（仅构建产物 / 跑测试需要，宿主运行不需要单独装 node）
 
-## 安装
+## 安装细节
+
+推荐用 `dsh plugin` 装（见上）。下面是它替你做的事，以及手动安装的方式。
 
 ```bash
-# 1. 把包链接进 web profile 的 node_modules（或 pnpm add file:...）
-mklink /J "$DSH_HOME\profiles\web\node_modules\dsh-leekbox" "<本包路径>"
+# 标准安装（推荐）
+dsh plugin --profile web add github:HPNY/dsh-portfolio
+```
 
-# 2. 在 $DSH_HOME/profiles/web/cordis.patch.yml 追加：
-# - insert:
-#     - id: leekbox
-#       name: 'dsh-leekbox'
+装完 `dsh plugin` 会把包放进 `$DSH_HOME/profiles/<profile>/node_modules`，并在 profile 的 `cordis.patch.yml`（bundle 层）里写入下面这行注册——等价于 `cordis.patch.yml` 的内容：
+
+```yaml
+- insert:
+    - id: portfolio
+      name: 'dsh-portfolio'
+```
+
+**手动安装**（不走 `dsh plugin`，用于开发或离线环境）：
+
+```bash
+# 1. 把包放进 web profile 的 node_modules
+#    Windows
+mklink /J "$DSH_HOME\profiles\web\node_modules\dsh-portfolio" "<本包路径>"
+#    macOS / Linux
+ln -s "<本包路径>" "$DSH_HOME/profiles/web/node_modules/dsh-portfolio"
+
+# 2. 在 $DSH_HOME/profiles/web/cordis.patch.yml 追加上面那段 insert 注册
 
 # 3. profile 配置文件 watcher 会在 ~1s 内热重组合，无需重启（服务端立即生效）；
 #    浏览器刷新页面后侧边栏出现「持仓看板」入口（线框柱状图图标）。
 #    若修改了 lib/index.js（服务端代码），需要重启 DeepSeek Harness 进程生效。
 ```
+
+**卸载**：`dsh plugin --profile web remove dsh-portfolio`（手动装的则删掉目录与注册行）。
 
 ## 结构
 
@@ -203,7 +232,7 @@ mklink /J "$DSH_HOME\profiles\web\node_modules\dsh-leekbox" "<本包路径>"
 ## 常见问题
 
 **这是网页版还是客户端？要单独装软件吗？**
-都不是——它是 DSH（DeepSeek Harness）的插件，跑在 DSH 的 **web profile** 里：服务端路由在 DSH 进程内，界面是浏览器里的一个面板。所以"安装"= 把包放进 `$DSH_HOME/profiles/web/node_modules` + 在 `cordis.patch.yml` 注册一行。
+都不是——它是 DSH（DeepSeek Harness）的插件，跑在 DSH 的 **web profile** 里：服务端路由在 DSH 进程内，界面是浏览器里的一个面板。所以"安装"就是一条命令：`dsh plugin --profile web add github:HPNY/dsh-portfolio`（它会把包放进 `$DSH_HOME/profiles/web/node_modules` 并注册插件行）。
 
 **需要付费行情 API 或注册账号吗？**
 不需要。行情、指数、K 线、榜单、龙虎榜、快讯全部来自公开免费接口（腾讯财经 / 东方财富 / 新浪财经 / 金十数据）。唯一需要你自备凭据的是 AI 个股分析里的模型密钥。
@@ -228,9 +257,10 @@ mklink /J "$DSH_HOME\profiles\web\node_modules\dsh-leekbox" "<本包路径>"
 
 ## 相关链接
 
-- 发布记录：[Releases](https://github.com/SuCriss/dsh-leekbox/releases)
-- 问题反馈 / 功能建议：[Issues](https://github.com/SuCriss/dsh-leekbox/issues)
-- npm 包：[dsh-leekbox](https://www.npmjs.com/package/dsh-leekbox)
+- 本插件仓库：[HPNY/dsh-portfolio](https://github.com/HPNY/dsh-portfolio)
+- 发布记录：[Releases](https://github.com/HPNY/dsh-portfolio/releases)
+- 问题反馈 / 功能建议：[Issues](https://github.com/HPNY/dsh-portfolio/issues)
+- 上游项目：[SuCriss/dsh-leekbox](https://github.com/SuCriss/dsh-leekbox)（韭菜盒子，MIT；本 fork 的上游）
 - English README：[README.en.md](README.en.md)
 - 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md) · 变更日志：[CHANGELOG.md](CHANGELOG.md)
 
