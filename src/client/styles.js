@@ -54,7 +54,7 @@ const CSS = `
 .lkb_tabBadge{flex:none;font-size:10px;font-weight:700;line-height:1;padding:2px 5px;border-radius:99px;background:#e2e5ec;color:var(--dsw-alias-label-secondary,#6b7280);font-variant-numeric:tabular-nums;transition:background .18s ease,color .18s ease}
 .lkb_tab[data-active="true"] .lkb_tabBadge{background:#4c6ef5;color:#fff;box-shadow:0 1px 3px #4c6ef580}
 @media (prefers-reduced-motion:reduce){.lkb_tab,.lkb_tabBadge,.lkb_tabIcon{transition:none}}
-.lkb_body{padding:14px 18px 10px;overflow-y:auto;overflow-x:hidden;background:var(--dsw-alias-bg-layer-1,#f7f8fa);flex:1;scrollbar-gutter:stable}
+.lkb_body{padding:14px 18px 10px;overflow-y:auto;overflow-x:hidden;background:var(--dsw-alias-bg-layer-1,#f7f8fa);flex:1;min-height:0;scrollbar-gutter:stable}
 .lkb_tabPanelIn{animation:lkb-tabPanelIn .16s ease-out}
 @keyframes lkb-tabPanelIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.lkb_tabPanelIn{animation:none}}
@@ -492,7 +492,7 @@ body[data-ds-dark-theme] .lkb_settingsBox{background:#3a3a3c;border-color:#fffff
 /* 显式给白色底：.lkb-win 的背景是 --dsw-alias-bg-overlay（当前主题下是浅灰），
    股票详情里它被白色卡片完全盖住、看不出来；基金页卡片之间有缝隙会露灰底，
    看着和股票详情不一致。这里按股票那一侧统一成 bg-base 白。 */
-.lkb-fundBody{padding:14px 16px;display:flex;flex-direction:column;gap:14px;overflow:auto;background:var(--dsw-alias-bg-base,#fff)}
+.lkb-fundBody{padding:14px 16px;display:flex;flex-direction:column;gap:14px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;background:var(--dsw-alias-bg-base,#fff)}
 /* 区间切换 chips：挂在 .lkb-chartTitle 的右侧（与股票详情 K 线标题右侧的周期按钮同位） */
 .lkb-fundRanges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .lkb-fundChartWrap{position:relative}

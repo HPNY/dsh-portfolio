@@ -419,7 +419,9 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 	const [q, setQ] = useState(null);
 	const [klines, setKlines] = useState([]);
 	const [minute, setMinute] = useState(null);
-	const [period, setPeriod] = useState("day");
+	// 默认「分时」，与雪球 / 同花顺一致：打开详情第一眼就是当日实时走势，
+	// 而不是藏在周期行第 4 个按钮里（此前默认日K，用户以为没有分时图）。
+	const [period, setPeriod] = useState("m1");
 	const [watching, setWatching] = useState(false);
 	const [fflow, setFflow] = useState(null);
 	const [f10, setF10] = useState(null);
@@ -624,7 +626,7 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 					h(
 						"span",
 						{ className: "lkb-periodRow" },
-						["day", "week", "month", "m1", "m5", "m15", "m30", "m60"].map(
+						["m1", "day", "week", "month", "m5", "m15", "m30", "m60"].map(
 							(p) => h("button", { key: p, className: "lkb-period", "data-active": period === p ? "true" : "false", onClick: () => setPeriod(p) }, { day: "日K", week: "周K", month: "月K", m1: "分时", m5: "5分", m15: "15分", m30: "30分", m60: "60分" }[p])
 						)
 					)

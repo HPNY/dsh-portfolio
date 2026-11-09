@@ -163,6 +163,22 @@ check(
 		"分时图在交易时段自动刷新（不是只取一次的静态快照）",
 		/if \(period !== "m1"\) return;/.test(detailSrc) && /API\.minute/.test(detailSrc) && /useTradingInterval/.test(detailSrc)
 	);
+	// 分时必须是**默认视图**且排在周期行首位（与雪球/同花顺一致）。此前默认日K、
+	// 分时藏在第 4 个按钮里，用户以为根本没做分时图。
+	check(
+		"分时是默认视图且排在周期行首位",
+		/useState\("m1"\)/.test(detailSrc) && /\["m1", "day"/.test(detailSrc)
+	);
+}
+// 详情窗内容超长时必须**可滚动**，不能被 .lkb-win 的 overflow:hidden 裁掉。
+// 关键是 flex 子项要 min-height:0 —— 默认 min-height:auto 会撑满父级高度，
+// 于是滚动条根本不出现，底部内容（财务摘要、重仓股列表）被圆角边切掉。
+{
+	const stylesSrc = readFileSync(new URL("./src/client/styles.js", import.meta.url), "utf8");
+	check(
+		"详情窗 body 可滚动（flex:1 + min-height:0，不会被裁掉）",
+		/\.lkb_body\{[^}]*min-height:0/.test(stylesSrc) && /\.lkb-fundBody\{[^}]*min-height:0/.test(stylesSrc)
+	);
 }
 // 系统性守卫：src/client 里用到的每一个 API.<key> 都必须在 core.js 的 API 表里登记。
 // 「表里没登记」的表现是 `API.xxx` 变 undefined、请求打到 /undefined?... 404，
