@@ -289,7 +289,7 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 				h(
 					"div",
 					{ className: "lkb-chartTitle" },
-					h("span", null, "净值走势（单位净值 + 成本线）"),
+					h("span", null, "净值走势", h("i", { className: "lkb-infoIcon", title: "蓝线为单位净值，红色虚线为你的持仓成本线" }, "ⓘ")),
 					h(
 						"div",
 						{ className: "lkb-fundRanges" },

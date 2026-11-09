@@ -634,7 +634,12 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 				h(
 					"div",
 					{ className: "lkb-chartTitle" },
-					period === "today" ? "当日分时（均价线为成交量加权）" : "K线（前复权）",
+					h(
+						"span",
+						null,
+						period === "today" ? "当日分时" : "K线",
+						h("i", { className: "lkb-infoIcon", title: period === "today" ? "均价线为成交量加权的当日走势" : "前复权：已把除权除息折算进历史价格" }, "ⓘ")
+					),
 					h(
 						"span",
 						{ className: "lkb-periodRow" },
