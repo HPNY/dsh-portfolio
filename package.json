@@ -1,7 +1,7 @@
 {
   "name": "dsh-portfolio",
   "displayName": "持仓看板",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "持仓看板：场内股票/ETF 与基金的持仓管理、成本线距离与解套进度看板。",
   "keywords": [
     "dsh",
