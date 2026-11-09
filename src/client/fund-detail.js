@@ -119,6 +119,17 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 	const [tracked, setTracked] = useState(null);
 	const cardRef = useRef(null);
 	const [pos, setPos] = useState({ x, y });
+	// 挂载后按**实际尺寸**夹回视口内：详情页多长取决于数据多少，窗口可能比估算的
+	// 更高更宽，不夹就会压出屏幕、每次都得手动拖。只在首次挂载跑一次。
+	useEffect(() => {
+		const el = cardRef.current;
+		if (!el) return;
+		const r = el.getBoundingClientRect();
+		const maxX = Math.max(8, window.innerWidth - r.width - 8);
+		const maxY = Math.max(8, window.innerHeight - r.height - 8);
+		setPos((p) => ({ x: Math.min(Math.max(8, p.x), maxX), y: Math.min(Math.max(8, p.y), maxY) }));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	useEffect(() => {
 		let alive = true;

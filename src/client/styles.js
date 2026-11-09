@@ -252,7 +252,7 @@ body[data-ds-dark-theme] .lkb-newsStock:hover .lkb-newsStockArrow{color:#a5b4fc}
 body[data-ds-dark-theme] .lkb-filterCard,body[data-ds-dark-theme] .lkb-check{background:#3a3a3c;border-color:#ffffff14}
 body[data-ds-dark-theme] .lkb-check[data-on="true"],body[data-ds-dark-theme] .lkb-score{background:#6378dc38;color:#a5b4fc;border-color:#6378dc66}
 body[data-ds-dark-theme] .lkb-progressBar{background:#6378dc}
-.lkb-win{position:fixed;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);border-radius:14px;width:min(760px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px #00000066;animation:lkb-pop .14s ease-out;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+.lkb-win{position:fixed;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);border-radius:14px;width:min(760px,94vw);max-height:min(88vh,760px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px #00000066;animation:lkb-pop .14s ease-out;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
 @keyframes lkb-pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 .lkb-mktTag{flex:none;font-size:10px;color:var(--dsw-alias-label-secondary,#8a8f9c);background:var(--dsw-alias-bg-layer-1,#f2f3f5);padding:2px 8px;border-radius:99px;font-weight:500}
 .lkb-hero{display:flex;gap:18px;align-items:stretch;flex-wrap:wrap;background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:12px;padding:12px 16px;margin-bottom:12px}

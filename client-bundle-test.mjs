@@ -161,13 +161,15 @@ check(
 	const detailSrc = readFileSync(new URL("./src/client/detail.js", import.meta.url), "utf8");
 	check(
 		"分时图在交易时段自动刷新（不是只取一次的静态快照）",
-		/if \(period !== "m1"\) return;/.test(detailSrc) && /API\.minute/.test(detailSrc) && /useTradingInterval/.test(detailSrc)
+		/if \(period !== "today"\) return;/.test(detailSrc) && /API\.minute/.test(detailSrc) && /useTradingInterval/.test(detailSrc)
 	);
 	// 分时必须是**默认视图**且排在周期行首位（与雪球/同花顺一致）。此前默认日K、
 	// 分时藏在第 4 个按钮里，用户以为根本没做分时图。
+	// 顺序与雪球的周期行一致：分时/五日/日K/周K/月K/季K/年K/120分/60分/30分/15分/5分/1分。
 	check(
-		"分时是默认视图且排在周期行首位",
-		/useState\("m1"\)/.test(detailSrc) && /\["m1", "day"/.test(detailSrc)
+		"分时是默认视图且周期行顺序与雪球一致",
+		/useState\("today"\)/.test(detailSrc) &&
+			/\["today", "m5day", "day", "week", "month", "quarter", "year", "m120", "m60", "m30", "m15", "m5", "m1"\]/.test(detailSrc)
 	);
 }
 // 详情窗内容超长时必须**可滚动**，不能被 .lkb-win 的 overflow:hidden 裁掉。
@@ -178,6 +180,19 @@ check(
 	check(
 		"详情窗 body 可滚动（flex:1 + min-height:0，不会被裁掉）",
 		/\.lkb_body\{[^}]*min-height:0/.test(stylesSrc) && /\.lkb-fundBody\{[^}]*min-height:0/.test(stylesSrc)
+	);
+	// 浮窗高度要封顶，否则 88vh 的窗口在小屏上会压出可视区
+	check("浮窗高度封顶（max-height 上限）", /max-height:min\(88vh,\d+px\)/.test(stylesSrc));
+}
+// 详情窗开屏要居中并在挂载后按实际尺寸夹回视口内，否则每次都得手动拖。
+{
+	const fundSrc = readFileSync(new URL("./src/client/fund-detail.js", import.meta.url), "utf8");
+	const panelSrc = readFileSync(new URL("./src/client/panel.js", import.meta.url), "utf8");
+	check(
+		"详情窗开屏居中且夹回视口（不再错开溢出屏幕）",
+		/getBoundingClientRect/.test(readFileSync(new URL("./src/client/detail.js", import.meta.url), "utf8")) &&
+			/getBoundingClientRect/.test(fundSrc) &&
+			!/k \* 28/.test(panelSrc)
 	);
 }
 // 系统性守卫：src/client 里用到的每一个 API.<key> 都必须在 core.js 的 API 表里登记。

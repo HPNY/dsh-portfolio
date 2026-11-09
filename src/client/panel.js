@@ -171,9 +171,12 @@ export function PortfolioPanel({ onClose }) {
 			const exist = prev.find((w) => w.code === code);
 			const z = bumpZ();
 			if (exist) return prev.map((w) => (w.id === exist.id ? { ...w, z: zSeq.current } : w));
-			const k = prev.length % 6;
-			const wx = Math.max(8, Math.round((window.innerWidth - 760) / 2)) + k * 28;
-			const wy = Math.max(8, Math.round((window.innerHeight - 620) / 2)) + k * 26;
+			// 开屏即居中：窗口实际高度随内容浮动（详情页多长取决于数据多少），
+			// 以前按 620 估算再加 k*28 的错开偏移，结果窗口常有一半在屏幕外、
+			// 每次都得手动拖。改为纯居中，多个窗口靠 z 序区分，
+			// 越界部分由窗口自己在挂载后夹回视口内。
+			const wx = Math.max(8, Math.round((window.innerWidth - 760) / 2));
+			const wy = Math.max(8, Math.round((window.innerHeight - 620) / 2));
 			return [
 				...prev,
 				{
@@ -202,9 +205,12 @@ export function PortfolioPanel({ onClose }) {
 			const exist = prev.find((w) => w.kind === "fund" && w.code === code);
 			const z = bumpZ();
 			if (exist) return prev.map((w) => (w.id === exist.id ? { ...w, fund, z: zSeq.current } : w));
-			const k = prev.length % 6;
-			const wx = Math.max(8, Math.round((window.innerWidth - 760) / 2)) + k * 28;
-			const wy = Math.max(8, Math.round((window.innerHeight - 620) / 2)) + k * 26;
+			// 开屏即居中：窗口实际高度随内容浮动（详情页多长取决于数据多少），
+			// 以前按 620 估算再加 k*28 的错开偏移，结果窗口常有一半在屏幕外、
+			// 每次都得手动拖。改为纯居中，多个窗口靠 z 序区分，
+			// 越界部分由窗口自己在挂载后夹回视口内。
+			const wx = Math.max(8, Math.round((window.innerWidth - 760) / 2));
+			const wy = Math.max(8, Math.round((window.innerHeight - 620) / 2));
 			return [
 				...prev,
 				{

@@ -421,7 +421,7 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 	const [minute, setMinute] = useState(null);
 	// 默认「分时」，与雪球 / 同花顺一致：打开详情第一眼就是当日实时走势，
 	// 而不是藏在周期行第 4 个按钮里（此前默认日K，用户以为没有分时图）。
-	const [period, setPeriod] = useState("m1");
+	const [period, setPeriod] = useState("today");
 	const [watching, setWatching] = useState(false);
 	const [fflow, setFflow] = useState(null);
 	const [f10, setF10] = useState(null);
@@ -432,6 +432,18 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 	const [kError, setKError] = useState("");
 	const cardRef = useRef(null);
 	const [pos, setPos] = useState({ x, y });
+	// 挂载后按**实际尺寸**夹回视口内：详情页多长取决于数据多少，窗口可能比估算的
+	// 更高更宽，不夹就会压出屏幕、每次都得手动拖。只在首次挂载跑一次，
+	// 不影响用户之后的拖动与双击居中。
+	useEffect(() => {
+		const el = cardRef.current;
+		if (!el) return;
+		const r = el.getBoundingClientRect();
+		const maxX = Math.max(8, window.innerWidth - r.width - 8);
+		const maxY = Math.max(8, window.innerHeight - r.height - 8);
+		setPos((p) => ({ x: Math.min(Math.max(8, p.x), maxX), y: Math.min(Math.max(8, p.y), maxY) }));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 	useEffect(() => {
 		let alive = true;
 		setError("");
@@ -445,7 +457,7 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 	useEffect(() => {
 		let alive = true;
 		setKError("");
-		if (period === "m1") {
+		if (period === "today") {
 			api(API.minute + `?code=${code}`).then((d) => {
 				if (alive) {
 					setMinute(d ?? null);
@@ -462,7 +474,7 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 			};
 		}
 		setMinute(null);
-		api(API.kline + `?code=${code}&period=${period}&count=120&fq=qfq`).then((d) => {
+		api(API.kline + `?code=${code}&period=${period}&count=${period === "m5day" ? 1300 : 120}&fq=qfq`).then((d) => {
 			if (alive) setKlines(d.klines ?? []);
 		}).catch((e) => {
 			if (alive) {
@@ -519,7 +531,7 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 	// 直接跳过，不发请求。
 	useTradingInterval(
 		() => {
-			if (period !== "m1") return;
+			if (period !== "today") return;
 			api(API.minute + `?code=${code}`).then((d) => setMinute(d ?? null)).catch(() => {
 			});
 		},
@@ -622,17 +634,17 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 				h(
 					"div",
 					{ className: "lkb-chartTitle" },
-					period === "m1" ? "当日分时（均价线为成交量加权）" : "K线（前复权）",
+					period === "today" ? "当日分时（均价线为成交量加权）" : "K线（前复权）",
 					h(
 						"span",
 						{ className: "lkb-periodRow" },
-						["m1", "day", "week", "month", "m5", "m15", "m30", "m60"].map(
-							(p) => h("button", { key: p, className: "lkb-period", "data-active": period === p ? "true" : "false", onClick: () => setPeriod(p) }, { day: "日K", week: "周K", month: "月K", m1: "分时", m5: "5分", m15: "15分", m30: "30分", m60: "60分" }[p])
+						["today", "m5day", "day", "week", "month", "quarter", "year", "m120", "m60", "m30", "m15", "m5", "m1"].map(
+							(p) => h("button", { key: p, className: "lkb-period", "data-active": period === p ? "true" : "false", onClick: () => setPeriod(p) }, { today: "分时", m5day: "五日", day: "日K", week: "周K", month: "月K", quarter: "季K", year: "年K", m120: "120分", m60: "60分", m30: "30分", m15: "15分", m5: "5分", m1: "1分" }[p])
 						)
 					)
 				),
 				kError === "" ? null : h("div", { className: "lkb-error" }, kError),
-				period === "m1" ? h(MinuteChart, { points: minute?.points, prevClose: q?.prevClose, date: minute?.date }) : h(KlineChart, { klines })
+				period === "today" ? h(MinuteChart, { points: minute?.points, prevClose: q?.prevClose, date: minute?.date }) : h(KlineChart, { klines })
 			),
 			fflow !== null && fflow.length > 0 ? h(
 				"div",
