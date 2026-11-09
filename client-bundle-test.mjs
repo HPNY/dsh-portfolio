@@ -155,6 +155,15 @@ check(
 		/dsh plugin --profile web add github:HPNY\/dsh-portfolio/.test(readme)
 	);
 }
+// 分时图必须在交易时段自动推进，否则它是"打开那一刻的快照"——头部价格在跳、
+// 曲线冻住，看起来像没有实时走势图。这条断言锁住那条 useTradingInterval。
+{
+	const detailSrc = readFileSync(new URL("./src/client/detail.js", import.meta.url), "utf8");
+	check(
+		"分时图在交易时段自动刷新（不是只取一次的静态快照）",
+		/if \(period !== "m1"\) return;/.test(detailSrc) && /API\.minute/.test(detailSrc) && /useTradingInterval/.test(detailSrc)
+	);
+}
 // 系统性守卫：src/client 里用到的每一个 API.<key> 都必须在 core.js 的 API 表里登记。
 // 「表里没登记」的表现是 `API.xxx` 变 undefined、请求打到 /undefined?... 404，
 // 界面只会安静地显示"无匹配结果"，很难定位 —— 上面那个 bug 就属于这一类。

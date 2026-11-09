@@ -510,6 +510,20 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 		1e4,
 		[code]
 	);
+	// 分时图也要跟着走。此前 minute 只在切到「分时」时取一次（effect 依赖 [code, period]），
+	// 于是盘中那条曲线是**点击那一刻的快照**：头部价格每 10s 在跳，曲线却冻住不动——
+	// 看起来像"没有实时走势图"。这里在交易时段按 20s 重取，节奏与服务端 minute 路由的
+	// 20s 缓存 TTL 对齐（见 lib/index.js 该路由注释），不会打穿上游；盘后 shouldPoll()
+	// 直接跳过，不发请求。
+	useTradingInterval(
+		() => {
+			if (period !== "m1") return;
+			api(API.minute + `?code=${code}`).then((d) => setMinute(d ?? null)).catch(() => {
+			});
+		},
+		2e4,
+		[code, period]
+	);
 	const toggleWatch = () => {
 		api(API.watchlist + (watching ? "/remove" : "/add"), { method: "POST", body: { code, name } }).then(() => {
 			setWatching(!watching);

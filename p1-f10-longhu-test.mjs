@@ -168,15 +168,20 @@ assert.match(json(res).error, /缺少参数 code/);
 console.log("== 3) /longhu 按请求日期回溯（date 参数必须生效） ==");
 // 每个场景前清空路由缓存，否则同一 URL 会命中上一个场景缓存下来的响应体。
 resetRouteCachesForTests();
-// 起点当天无数据、前一天有数据 → 从起点回溯应命中前一天。
-longhuDates = new Set([D1]);
+// 起点当天无数据、之前的某天有数据 → 从起点回溯应命中那之前的一天。
+//
+// fixture 覆盖起点前 12 个日历日，而不是只放"前一天"：回溯会**跳过非交易日**
+// （周末 / 法定节假日），所以"哪一天会命中"不能写死成 -1 天 —— 周一跑时 -1 是
+// 周日，回溯根本不会查它，于是 502。这正是该用例此前只在工作日侥幸通过的原因。
+longhuDates = new Set(Array.from({ length: 12 }, (_, i) => shiftDays(TODAY, -1 - i)));
 longhuUrls.length = 0;
 res = makeRes();
 await longhuRoute.handler(makeGet(`${ROUTES.longhu}?date=${TODAY}`), res);
-assert.strictEqual(res.statusCode, 200);
+assert.strictEqual(res.statusCode, 200, "回溯应命中起点之前的交易日");
 const lh = json(res);
 assert.strictEqual(lh.requestedDate, TODAY, "响应回带请求的起点日期");
-assert.strictEqual(lh.date, D1, "10-09 无榜单 → 回溯到 10-08");
+assert.ok(longhuDates.has(lh.date), `命中日期 ${lh.date} 必须落在 fixture 内`);
+assert.ok(lh.date < TODAY, "回溯只能往过去，不得向前取用");
 assert.strictEqual(lh.total, 1);
 // 关键回归：起点是请求日期，不是"今天"。旧实现会从今天倒推，第一次请求打的是
 // 今天而不是 10-09。

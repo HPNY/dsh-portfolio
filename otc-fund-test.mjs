@@ -7,6 +7,23 @@
 // 同时保留一条「真连一次」的可选冒烟：设置 OTC_FUND_LIVE=1 才跑，默认跳过。
 import assert from "node:assert/strict";
 import { resetRouteCachesForTests } from "./lib/route-cache.js";
+import { cnDateStr } from "./lib/calendar.js";
+
+/** 纯日历加减（UTC 算术，不受宿主机时区影响）。 */
+function shiftDays(iso, n) {
+	const [y, m, d] = String(iso).split("-").map(Number);
+	return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+// 所有 fixture 日期都从「中国的今天」推算，不再写死某一天 —— 否则 stale 判定
+// 会随真实时间流逝把用例变红（STALE_NAV_DAYS=7，写死的日期几天后就超期）。
+const T_TODAY = cnDateStr();
+const D1 = shiftDays(T_TODAY, -1);
+const D2 = shiftDays(T_TODAY, -2);
+const D3 = shiftDays(T_TODAY, -3);
+const TS_D1 = Date.parse(`${D1}T00:00:00+08:00`);
+const TS_D2 = Date.parse(`${D2}T00:00:00+08:00`);
+const TS_D3 = Date.parse(`${D3}T00:00:00+08:00`);
+
 import {
 	FUND_ROUTES,
 	resetFundSourceHealthForTests,
@@ -74,9 +91,9 @@ function pingzhongFixture({ name = "融通医疗保健行业混合A/B", points }
 	const trend =
 		points ??
 		[
-			{ x: 1792944000000, y: 1.591, equityReturn: -1.36, unitMoney: "" },
-			{ x: 1793030400000, y: 1.593, equityReturn: 0.13, unitMoney: "" },
-			{ x: 1793462400000, y: 1.606, equityReturn: 0.82, unitMoney: "" },
+			{ x: TS_D3, y: 1.591, equityReturn: -1.36, unitMoney: "" },
+			{ x: TS_D2, y: 1.593, equityReturn: 0.13, unitMoney: "" },
+			{ x: TS_D1, y: 1.606, equityReturn: 0.82, unitMoney: "" },
 		];
 	return (
 		"\uFEFF/**\n * 测试数据\n * @type {arry}\n */" +
@@ -84,7 +101,7 @@ function pingzhongFixture({ name = "融通医疗保健行业混合A/B", points }
 		`/*基金或股票信息*/var fS_name = ${JSON.stringify(name)};var fS_code = "161616";` +
 		'var fund_sourceRate="1.50";var fund_Rate="0.15";var fund_minsg="10";' +
 		`var Data_netWorthTrend = ${JSON.stringify(trend)};` +
-		'var Data_ACWorthTrend = [[1792944000000,2.971],[1793030400000,2.973],[1793462400000,2.986]];' +
+		'var Data_ACWorthTrend = [[' + TS_D3 + ',2.971],[' + TS_D2 + ',2.973],[' + TS_D1 + ',2.986]];' +
 		'var Data_fluctuationScale = {"categories":["2026-06-30","2026-09-30"],"series":[{"y":5.52,"mom":"-4.08%"},{"y":5.78,"mom":"4.74%"}]};' +
 		'var Data_currentFundManager =[{"id":"30123456","name":"刘曦阳","star":3,"workTime":"2年又233天"}];' +
 		'var syl_1n="-7.44";var syl_6y="-4.86";var syl_3y="-2.73";var syl_1y="-13.24";' +
@@ -127,7 +144,7 @@ globalThis.fetch = async (input, init = {}) => {
 			return new Response("<!doctype html><html><title>页面未找到 - 东方财富网</title></html>", { status: 200 });
 		}
 		return new Response(
-			'jsonpgz({"fundcode":"161616","name":"融通医疗保健行业混合A/B","jzrq":"2026-11-02","dwjz":"1.606","gsz":"1.612","gszzl":"0.37","gztime":"2026-11-03 14:30"});',
+			'jsonpgz({"fundcode":"161616","name":"融通医疗保健行业混合A/B","jzrq":"' + D1 + '","dwjz":"1.606","gsz":"1.612","gszzl":"0.37","gztime":"2026-11-03 14:30"});',
 			{ status: 200 }
 		);
 	}
@@ -136,7 +153,7 @@ globalThis.fetch = async (input, init = {}) => {
 		if (!live.fundmob) return jsonBody({ Datas: null, ErrCode: 61136403, Success: false });
 		const codes = (/Fcodes=([^&]*)/.exec(url)?.[1] ?? "").split(",").filter(Boolean);
 		return jsonBody({
-			Datas: codes.map((code) => ({ FCODE: code, SHORTNAME: "融通医疗", DWJZ: "1.606", PDATE: "2026-11-02", GSZ: null, GSZZL: null, GZTIME: null })),
+			Datas: codes.map((code) => ({ FCODE: code, SHORTNAME: "融通医疗", DWJZ: "1.606", PDATE: D1, GSZ: null, GSZZL: null, GZTIME: null })),
 			ErrCode: 0,
 			Success: true,
 		});
@@ -259,10 +276,10 @@ ok("净值历史按日期升序且升到 3 个点", () => {
 	assert.equal(p.navHistory.length, 3);
 	assert.deepEqual(
 		p.navHistory.map((x) => x.date),
-		["2026-10-26", "2026-10-27", "2026-11-01"]
+		[D3, D2, D1]
 	);
 	assert.equal(p.latestNav, 1.606);
-	assert.equal(p.latestDate, "2026-11-01");
+	assert.equal(p.latestDate, D1);
 });
 
 ok("毫秒时间戳按东八区换算日期（与宿主机时区无关）", () => {
@@ -369,7 +386,7 @@ await okAsync("pingzhongdata 挂掉 → 用 App 接口净值兜底，并标 stal
 	reset({ pingzhong: false });
 	const p = await fetchFundProfile("161616", { fresh: true });
 	assert.equal(p.latestNav, 1.606);
-	assert.equal(p.latestDate, "2026-11-02");
+	assert.equal(p.latestDate, D1);
 	assert.equal(p.stale, true, "兜底净值应标记数据未更新");
 	assert.deepEqual(p.navHistory, [], "兜底路径没有历史曲线");
 });
@@ -724,6 +741,25 @@ await okAsync("positions：非法 code → 400", async () => {
 	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundPositions}?code=xx`, headers: { host: "127.0.0.1" } });
 	await routeFor(routes, FUND_ROUTES.otcFundPositions).handler(req, res);
 	assert.equal(res.statusCode, 400);
+});
+
+await okAsync("positions：quoteProvider 返回数组（index.js 真实形状）也能取到价格", async () => {
+	// 回归：index.js 的 fetchTencentQuotes 返回的是**数组**而不是 Map。以前这里只认
+	// `q instanceof Map`，数组被整批丢掉，界面所有价格/涨跌都静默显示成空 —— 表现
+	// 为"持仓有了，但现价和涨跌幅全空"。Map 形状与数组形状都要支持。
+	reset({ gzlist: false, fundgz: false });
+	const routes = makeOtcFundRoutes({}, {
+		dshHome: "C:/tmp/x",
+		store: fakeStore(),
+		quoteProvider: async () => [{ code: "sh600519", price: 1500, changePct: 1.2 }],
+	});
+	const { req, res } = makeReqRes({ url: `${FUND_ROUTES.otcFundPositions}?code=005827`, headers: { host: "127.0.0.1" } });
+	await routeFor(routes, FUND_ROUTES.otcFundPositions).handler(req, res);
+	assert.equal(res.statusCode, 200);
+	const body = JSON.parse(res.payload);
+	const mt = body.positions.find((p) => p.code === "600519");
+	assert.equal(mt.price, 1500, "数组形状必须取到价格");
+	assert.equal(mt.changePct, 1.2);
 });
 
 await okAsync("positions：接口限流（Datas:null）→ 502，不伪装成「没有持仓」", async () => {
