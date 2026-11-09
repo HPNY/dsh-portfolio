@@ -183,6 +183,8 @@ check(
 	);
 	// 浮窗高度要封顶，否则 88vh 的窗口在小屏上会压出可视区
 	check("浮窗高度封顶（max-height 上限）", /max-height:min\(88vh,\d+px\)/.test(stylesSrc));
+	// 周期按钮 13 个档位，必须不截断文字 —— 否则标题一长就挤成 "分\n时"。
+	check("周期按钮文字不截断（white-space:nowrap）", /\.lkb-period\{[^}]*white-space:nowrap/.test(stylesSrc));
 }
 // 详情窗开屏要居中并在挂载后按实际尺寸夹回视口内，否则每次都得手动拖。
 {

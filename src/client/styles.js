@@ -188,9 +188,13 @@ body[data-ds-dark-theme] .lkb-srBadge.t-lof{background:#6b5fa840;color:#c4b5fd}
 .lkb-qItem .lkb-qLabel{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px;margin-bottom:2px}
 .lkb-qItem .lkb-qValue{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 .lkb-chartBox{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:12px;padding:12px 14px;margin-bottom:12px}
-.lkb-chartTitle{font-size:12.5px;font-weight:600;color:var(--dsw-alias-label-secondary,#5f6672);display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.lkb-periodRow{display:flex;gap:4px}
-.lkb-period{font-size:11px;cursor:pointer;padding:2px 8px;border-radius:6px;color:var(--dsw-alias-label-secondary,#8a8f9c);background:0 0;border:1px solid transparent}
+/* 周期行有 13 个档位，标题又可能很长（"当日分时（均价线为成交量加权）"）。
+   挤在同一行会把按钮压到换行、甚至从词中间断开（"分\n时"）。这里让标题行可换行、
+   标题超长时省略号、按钮不截断、按钮行靠右并允许整体换到下一行。 */
+.lkb-chartTitle{font-size:12.5px;font-weight:600;color:var(--dsw-alias-label-secondary,#5f6672);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.lkb-chartTitle>span{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lkb-periodRow{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;flex:0 1 auto;min-width:0}
+.lkb-period{font-size:11px;cursor:pointer;padding:2px 8px;border-radius:6px;color:var(--dsw-alias-label-secondary,#8a8f9c);background:0 0;border:1px solid transparent;white-space:nowrap}
 .lkb-period[data-active="true"]{background:#eef2ff;color:#4353a3;font-weight:600}
 .lkb-newsItem{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:10px;padding:10px 14px;margin-bottom:8px}
 .lkb-newsMeta{display:flex;gap:8px;align-items:center;margin-bottom:5px;font-size:11px;color:var(--dsw-alias-label-tertiary,#a2a7b3)}
