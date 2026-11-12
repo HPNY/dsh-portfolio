@@ -2,6 +2,7 @@
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, fmt, fmtAmount, fmtPct, fmtSign, lkbConfirm, notifyFailure, trend, useInterval } from "./core.js";
+import { rowHover } from "./hover-preview.js";
 
 /** 宽松取数：非有限值一律当"没有"。上游字段可能缺失 / null / 空串，页面不许因此崩。 */
 function num(v) {
@@ -200,7 +201,7 @@ export function OtcFundTab({ active = true, onOpen, bump = 0 }) {
 							// 点行打开基金详情浮窗（与自选页点行开详情窗同一套交互）
 							return h(
 								"tr",
-								{ key: code, onClick: () => onOpen(fund) },
+								{ key: code, onClick: () => onOpen(fund), ...rowHover({ kind: "fund", code, name: fund?.name, fund }) },
 								h(
 									"td",
 									null,

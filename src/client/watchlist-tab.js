@@ -2,6 +2,7 @@
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { createRoot, h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, fmt, fmtAmount, fmtPct, fmtSign, lkbConfirm, notifyFailure, onToast, openOnRow, pushToast, ToastStack, trend, useTradingInterval } from "./core.js";
+import { rowHover } from "./hover-preview.js";
 import { StarButton } from "./star.js";
 
 /** Trigger a browser download for an in-memory blob. */
@@ -541,7 +542,7 @@ export function WatchlistTab({ onOpen, bump }) {
 					const plPct = hasPos && pl !== null ? (pl / (Number(it.cost) * Number(it.qty))) * 100 : null;
 					return h(
 						"tr",
-						{ key: it.code, onClick: (e) => openOnRow(e, onOpen, it.code, it.name) },
+						{ key: it.code, onClick: (e) => openOnRow(e, onOpen, it.code, it.name), ...rowHover({ code: it.code, name: q?.name || it.name }) },
 						h("td", null, h("span", { className: "lkb-name" }, q?.name || it.name), h("span", { className: "lkb-code" }, it.code)),
 						h("td", { className: trend(q?.change) }, fmt(q?.price)),
 						h("td", { className: trend(q?.change) }, fmtPct(q?.changePct)),

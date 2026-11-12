@@ -2,6 +2,7 @@
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, cnMarket, describeError, fmt, fmtAmount, fmtPct, fmtSign, fmtYi, isWatched, openOnRow, trend, useTradingInterval } from "./core.js";
+import { rowHover } from "./hover-preview.js";
 import { StarButton } from "./star.js";
 
 /** 本机时区的今天（YYYY-MM-DD）。
@@ -391,6 +392,7 @@ export function MarketTab({ onOpen, onOpenFund, watchCodes }) {
 								key: s.code,
 								style: { display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 8, cursor: "pointer" },
 								onClick: (e) => openOnRow(e, onOpen, s.code, s.name),
+								...rowHover({ code: s.code, name: s.name }),
 							},
 							h("span", { className: "lkb-name" }, s.name),
 							h("span", { className: "lkb-code" }, s.code),
@@ -498,7 +500,7 @@ export function MarketTab({ onOpen, onOpenFund, watchCodes }) {
 						rows.map((r, i) =>
 							h(
 								"tr",
-								{ key: r.symbol, style: { animationDelay: Math.min(i * 12, 240) + "ms" }, onClick: (e) => openOnRow(e, onOpen, r.code, r.name) },
+								{ key: r.symbol, style: { animationDelay: Math.min(i * 12, 240) + "ms" }, onClick: (e) => openOnRow(e, onOpen, r.code, r.name), ...rowHover({ code: r.code, name: r.name }) },
 								h("td", null, h("span", { className: "lkb-rankNum", "data-medal": i < 3 ? String(i + 1) : void 0 }, String((page - 1) * pageSize + i + 1))),
 								h("td", null, h("span", { className: "lkb-name" }, r.name), h("span", { className: "lkb-code" }, r.code)),
 								h("td", null, fmt(r.price)),

@@ -2,6 +2,7 @@
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, fmt, fmtPct, isWatched, openOnRow, trend } from "./core.js";
+import { rowHover } from "./hover-preview.js";
 import { StarButton } from "./star.js";
 
 // 选股面板的信号/策略元数据以服务端为唯一来源（GET /screener/meta，定义见
@@ -373,7 +374,7 @@ export function ScreenerTab({ onOpen, watchCodes }) {
 														ev.stocks.map((s) =>
 															h(
 																"div",
-																{ className: "lkb-eventStock", key: s.code, onClick: (e) => openOnRow(e, onOpen, s.code, s.name) },
+																{ className: "lkb-eventStock", key: s.code, onClick: (e) => openOnRow(e, onOpen, s.code, s.name), ...rowHover({ code: s.code, name: s.name }) },
 																h("span", { className: "lkb-name" }, s.name),
 																h("span", { className: "lkb-code" }, s.code),
 																h("span", { className: "lkb-eventPrice " + trend(s.changePct) }, s.price === null || s.price === void 0 ? "—" : fmt(s.price)),
@@ -613,7 +614,7 @@ export function ScreenerTab({ onOpen, watchCodes }) {
 							rows.map((r, i) =>
 								h(
 									"tr",
-									{ key: r.symbol, onClick: (e) => openOnRow(e, onOpen, r.code, r.name) },
+									{ key: r.symbol, onClick: (e) => openOnRow(e, onOpen, r.code, r.name), ...rowHover({ code: r.code, name: r.name }) },
 									h("td", null, h("span", { className: "lkb-rankNum", "data-medal": i < 3 ? String(i + 1) : void 0 }, i + 1)),
 									h("td", null, h("span", { className: "lkb-name" }, r.name), h("span", { className: "lkb-code" }, r.code)),
 									mode === "multi"

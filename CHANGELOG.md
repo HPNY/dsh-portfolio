@@ -3,6 +3,18 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.24.0] - 2026-11-12
+
+### Added
+
+- **悬停预览浮窗**：鼠标悬停在任意股票/基金行上（自选、行情、选股、大盘、场外基金五个列表）停留约 380ms 即弹出轻量预览浮窗，**移开自动收起**。设计要点：
+  - **延迟出现**（380ms）——快速扫表不会满屏闪烁；**移开宽限**（160ms）——指针从行移到浮窗上时不至于立刻消失（浮窗可交互，可点关闭）。
+  - **单例**：同一时刻只有一个预览，切行即换内容，不叠窗。
+  - **智能定位**：优先贴在行的右侧，右边放不下翻到左侧，最终夹回视口（纯函数 `previewPosition`，便于对照测试）。
+  - **最轻内容档**：新增 `variant: "preview"`（报价 + 分时/日K 两档 + 精简统计），不渲染操作行/持仓卡，也**不发资金流/F10 请求**——鼠标扫过不该打一串上游。
+  - 键盘可达：行获得焦点同样触发预览（`previewHandlers` 提供 focus/blur）。
+- 接线集中在 `core.js` 的 `rowHover(row)` 与 `hover-preview.js`，五个列表各铺一行即可；测试断言"每个列表都接上了"，漏一个就变红。
+
 ## [0.23.0] - 2026-11-12
 
 ### Fixed

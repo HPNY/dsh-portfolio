@@ -202,14 +202,17 @@ export function FundDetailContent({ fund, onChanged, onDrill, variant = "page" }
 		),
 		onDrill ? h("button", { className: "lkb-btnPrimary", onClick: onDrill }, "⤢ 打开完整详情") : null
 	);
+	// 三档变体：page=钻取子页（全量）/ rail=右栏（含操作行）/ preview=悬停预览（最轻）
+	const isPreview = variant === "preview";
+	const isRail = variant === "rail";
 	return h(
 		"div",
-		{ className: variant === "rail" ? "lkb-detail lkb-detailRail" : "lkb-detail" },
+		{ className: isRail ? "lkb-detail lkb-detailRail" : isPreview ? "lkb-detail lkb-detailPreview" : "lkb-detail" },
 		h(
 			"div",
 			{ className: "lkb-fundBody" },
 			error === "" ? null : h("div", { className: "lkb-error" }, error),
-			variant === "rail" ? null : actionsRow,
+			isRail || isPreview ? null : actionsRow,
 			// 净值区：与股票详情顶部同一套 .lkb-detailQuote 网格（边框圆角卡片 + 小标签/大数值）
 			h(
 				"div",
@@ -220,7 +223,7 @@ export function FundDetailContent({ fund, onChanged, onDrill, variant = "page" }
 				item("净值日期", estimate ? data?.estimateTime || "估值中" : data?.latestDate || "—")
 			),
 			// 阶段涨幅（完整版专属：右栏留给「打开完整详情」）
-			variant === "rail" ? null : h(
+			variant !== "page" ? null : h(
 				"div",
 				null,
 				h("div", { className: "lkb-secTitle" }, "阶段涨幅"),
@@ -274,7 +277,7 @@ export function FundDetailContent({ fund, onChanged, onDrill, variant = "page" }
 				)
 			),
 			// 最新披露的前十大重仓股（完整版专属）：占净值比例 + 实时涨跌（港股无行情则显示"—"）
-			variant === "rail" ? null : positions.length === 0 && posError === ""
+			variant !== "page" ? null : positions.length === 0 && posError === ""
 				? null
 				: h(
 						"div",
@@ -310,7 +313,7 @@ export function FundDetailContent({ fund, onChanged, onDrill, variant = "page" }
 									})
 								)
 					),
-			variant === "rail" ? actionsRow : null
+			isRail ? actionsRow : null
 		)
 	);
 }

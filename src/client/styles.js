@@ -28,6 +28,23 @@ const CSS = `
 .lkb-posItem{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dsw-alias-label-secondary,#5f6672)}
 .lkb-posLabel{color:var(--dsw-alias-label-tertiary,#a2a7b3)}
 .lkb-posEmpty{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px}
+/* ---- 悬停预览浮窗（hover 显示、移开取消） ----------------------------------
+   定位由 hover-preview.js 的 previewPosition 计算后写成行内 left/top；
+   这里只管外观。z 高于页面内容、低于钉住浮窗与确认/ toast 层。 */
+.lkb-hoverCard{position:fixed;z-index:2147483500;width:min(400px,92vw);max-height:min(70vh,560px);display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:12px;box-shadow:0 16px 44px #00000033;pointer-events:auto;animation:lkb-previewIn .12s ease-out}
+@keyframes lkb-previewIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.lkb-hoverCard{animation:none}}
+.lkb-hoverHead{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed);background:var(--dsw-alias-bg-base,#fff)}
+.lkb-hoverTitle{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lkb-hoverHead .lkb_close{margin-left:auto;font-size:16px;padding:2px 6px}
+/* 预览档的紧凑排版：信息密度最高、无操作行/持仓卡 */
+.lkb-detailPreview{overflow:hidden}
+.lkb-hoverCard .lkb_body,.lkb-hoverCard .lkb-fundBody{padding:10px 12px;gap:10px}
+.lkb-hoverCard .lkb-hero{padding:10px 12px}
+.lkb-hoverCard .lkb-heroPrice{font-size:22px}
+.lkb-hoverCard .lkb-heroGrid{grid-template-columns:repeat(2,1fr)}
+body[data-ds-dark-theme] .lkb-hoverCard{background:#2c2c2e;border-color:#ffffff1f;box-shadow:0 16px 44px #000000cc}
+body[data-ds-dark-theme] .lkb-hoverHead{background:#2c2c2e;border-color:#ffffff14}
 /* ---- 浮窗层（方向 A 叠加）：右栏联动之外，钉住的标的可并排对比 ---- */
 .lkb-floatLayer{position:fixed;inset:0;z-index:2147483600;pointer-events:none}
 .lkb-floatWin{position:fixed;pointer-events:auto;width:min(420px,92vw);max-height:min(72vh,620px);display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:14px;box-shadow:0 20px 60px #00000040;animation:lkb-pop .14s ease-out}

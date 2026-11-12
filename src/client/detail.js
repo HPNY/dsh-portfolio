@@ -416,9 +416,11 @@ function FflowChart({ rows }) {
 		hover === null || hi < 0 ? h("div", { className: "lkb-ffval" }, "悬停柱子查看当日主力净流入") : h("div", { className: "lkb-ffval" }, `${String(rows[hi].date ?? "").slice(5)} 主力净流入 `, h("b", { className: trend(vals[hi]) }, fmtYi(vals[hi])))
 	);
 }
-/** 周期档位：完整 13 档顺序与雪球一致；右栏紧凑版收敛 6 档（分时/日K/周K/月K/30分/5分）。 */
+/** 周期档位：完整 13 档顺序与雪球一致；右栏收敛 6 档；悬停预览只留分时/日K 两档
+ *  （预览是"扫一眼"的轻量视图，给一排按钮反而分散注意力，也不该在预览里切周期）。 */
 const PERIODS_ALL = ["today", "m5day", "day", "week", "month", "quarter", "year", "m120", "m60", "m30", "m15", "m5", "m1"];
 const PERIODS_RAIL = ["today", "day", "week", "month", "m30", "m5"];
+const PERIODS_PREVIEW = ["today", "day"];
 const PERIOD_LABELS = { today: "分时", m5day: "五日", day: "日K", week: "周K", month: "月K", quarter: "季K", year: "年K", m120: "120分", m60: "60分", m30: "30分", m15: "15分", m5: "5分", m1: "1分" };
 
 /** 个股详情**内容**（右栏紧凑版 / 钻取子页完整版共用）。
@@ -465,6 +467,7 @@ export function StockDetailContent({ code, name, isIndex, onWatched, onDrill, va
 		};
 	}, [code]);
 	// 右栏持仓卡显示该股的价格预警条件；预警增删经 leekbox:alerts-changed 广播即时刷新。
+	// 预览档（hover）不显示持仓卡，也就不必拉预警。
 	useEffect(() => {
 		if (variant !== "rail") return;
 		let alive = true;
@@ -512,8 +515,9 @@ export function StockDetailContent({ code, name, isIndex, onWatched, onDrill, va
 		};
 	}, [code, period]);
 	useEffect(() => {
-		// 右栏紧凑版不渲染资金流/F10（那是「打开完整详情」的内容），不发这两组请求。
-		if (variant === "rail") return;
+		// 右栏紧凑版与悬停预览都不渲染资金流/F10（那是「打开完整详情」的内容），
+		// 也就不该为它们发请求——预览尤其要轻，鼠标扫过不该打一串上游。
+		if (variant !== "page") return;
 		let alive = true;
 		setFflowErr("");
 		api(API.fflow + `?code=${code}&count=30`).then((d) => {
@@ -530,7 +534,7 @@ export function StockDetailContent({ code, name, isIndex, onWatched, onDrill, va
 	}, [code, extraTick]);
 	useEffect(() => {
 		// 同上：F10 只在完整版拉。
-		if (variant === "rail") return;
+		if (variant !== "page") return;
 		let alive = true;
 		setF10Err("");
 		api(API.f10 + `?code=${code}`).then((d) => {
@@ -620,15 +624,18 @@ export function StockDetailContent({ code, name, isIndex, onWatched, onDrill, va
 		onDrill ? h("button", { className: "lkb-btnPrimary", onClick: onDrill }, "⤢ 打开完整详情") : null
 	);
 	const mkt = cnMarket(String(code ?? "").slice(0, 2).toUpperCase());
+	// 三档变体：page=钻取子页（全量）/ rail=右栏（含持仓卡与操作行）/ preview=悬停预览（最轻）
+	const isPreview = variant === "preview";
+	const isRail = variant === "rail";
 	return h(
 		"div",
-		{ className: variant === "rail" ? "lkb-detail lkb-detailRail" : "lkb-detail" },
+		{ className: isRail ? "lkb-detail lkb-detailRail" : isPreview ? "lkb-detail lkb-detailPreview" : "lkb-detail" },
 		h(
 			"div",
 			{ className: "lkb_body" },
 			error === "" ? null : h("div", { className: "lkb-error" }, error),
-			variant === "rail" ? null : actionsRow,
-			variant === "rail" ? null : alertOpen && !isIndex ? h(AlertForm, { code, name: name ?? code, onDone: () => setAlertOpen(false) }) : null,
+			isRail || isPreview ? null : actionsRow,
+			isRail || isPreview ? null : alertOpen && !isIndex ? h(AlertForm, { code, name: name ?? code, onDone: () => setAlertOpen(false) }) : null,
 			h(
 				"div",
 				{ className: "lkb-hero" },
@@ -673,7 +680,7 @@ export function StockDetailContent({ code, name, isIndex, onWatched, onDrill, va
 					h(
 						"span",
 						{ className: "lkb-periodRow" },
-						(variant === "rail" ? PERIODS_RAIL : PERIODS_ALL).map(
+						(variant === "page" ? PERIODS_ALL : variant === "rail" ? PERIODS_RAIL : PERIODS_PREVIEW).map(
 							(p) => h("button", { key: p, className: "lkb-period", "data-active": period === p ? "true" : "false", onClick: () => setPeriod(p) }, PERIOD_LABELS[p])
 						)
 					)
@@ -682,9 +689,9 @@ export function StockDetailContent({ code, name, isIndex, onWatched, onDrill, va
 				period === "today" ? h(MinuteChart, { points: minute?.points, prevClose: q?.prevClose, date: minute?.date }) : h(KlineChart, { klines })
 			),
 			// 右栏紧凑版的尾部：持仓卡 → 预警表单（按需）→ 操作行（对应设计稿底部操作条）。
-			variant === "rail" ? posCard() : null,
-			variant === "rail" && alertOpen && !isIndex ? h(AlertForm, { code, name: name ?? code, onDone: () => setAlertOpen(false) }) : null,
-			variant === "rail" ? actionsRow : null,
+			isRail ? posCard() : null,
+			isRail && alertOpen && !isIndex ? h(AlertForm, { code, name: name ?? code, onDone: () => setAlertOpen(false) }) : null,
+			isRail ? actionsRow : null,
 			fflow !== null && fflow.length > 0 ? h(
 				"div",
 				{ className: "lkb-chartBox" },

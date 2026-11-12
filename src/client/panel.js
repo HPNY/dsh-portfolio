@@ -17,6 +17,7 @@ import { OtcFundTab } from "./otc-fund-tab.js";
 import { SettingsDialog } from "./settings.js";
 import { StockDetailContent } from "./detail.js";
 import { FundDetailContent } from "./fund-detail.js";
+import { PreviewHost } from "./hover-preview.js";
 import { DISPLAY_NAME } from "../../lib/identity.js";
 import { BRAND_ICON_SVG } from "./icon.js";
 
@@ -342,6 +343,8 @@ export function PortfolioPage() {
 				),
 		// 浮窗层（方向 A 叠加）：钉住的标的并排对比，可拖拽/关闭/置顶。
 		floats.length === 0 ? null : h(FloatLayer, { floats, onClose: closeFloat, onFocus: focusFloat }),
+		// 悬停预览宿主：列表行 mouseenter 时弹出轻量浮窗，移开收起（见 hover-preview.js）。
+		h(PreviewHost),
 		h(
 			"div",
 			{ className: "lkb_foot" },

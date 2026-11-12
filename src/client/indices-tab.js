@@ -2,6 +2,7 @@
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useCallback, useEffect, useState } from "./react.js";
 import { API, api, cnMarket, describeError, fmt, fmtPct, fmtSign, marketOpenLabel, nowTime, openOnRow, trend, useTradingInterval } from "./core.js";
+import { rowHover } from "./hover-preview.js";
 import { SentimentCard } from "./sentiment.js";
 
 export function IndicesTab({ onOpen }) {
@@ -42,7 +43,7 @@ export function IndicesTab({ onOpen }) {
 				const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "—";
 				return h(
 					"div",
-					{ className: "lkb-indexCard", key: q.code, style: { "--lkb-dir": dirColor }, onClick: (e) => openOnRow(e, onOpen, q.code, q.name) },
+					{ className: "lkb-indexCard", key: q.code, style: { "--lkb-dir": dirColor }, onClick: (e) => openOnRow(e, onOpen, q.code, q.name), ...rowHover({ code: q.code, name: q.name, isIndex: true }) },
 					h(
 						"div",
 						{ className: "lkb-indexName" },

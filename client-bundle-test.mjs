@@ -135,7 +135,37 @@ check(
 	"注册失败不静默（显式探活 ctx.slots + console.error 可诊断告警）",
 	src.includes('if (ctx?.slots === void 0)') && src.includes("[portfolio] ctx.slots 不可用") && src.includes("[portfolio] 面板注册失败：")
 );
-// ── 方向 A 叠加（浮窗并排对比）：C 的右栏之外，可把标的钉成浮窗 ──────────
+// ── 悬停预览（hover 显示 / 移开取消）────────────────────────────────────
+//
+// 需求原话：「鼠标悬停在对应股票和基金项上时显示浮窗，移开后取消浮窗显示」。
+// 四个要点都要在产物里可验证：延迟出现（不是划过就闪）、移开收起、
+// 单例（不叠一堆）、以及各列表都接上了（漏一个就表现为"某些行不预览"）。
+check(
+	"悬停预览：延迟出现 + 移开收起（防闪烁的定时器）",
+	/var SHOW_DELAY = \d+;/.test(src) && /var HIDE_GRACE = \d+;/.test(src) && src.includes("function showPreviewSoon(") && src.includes("function hidePreview(")
+);
+check(
+	"悬停预览单例（订阅式广播，同一时刻只有一个浮窗）",
+	src.includes("previewListeners") && src.includes("function PreviewHost(") && src.includes("function onPreview(")
+);
+check(
+	"预览浮窗可被指针进入（否则移到浮窗上就消失）",
+	src.includes("function keepPreview(") && /onMouseEnter: keepPreview/.test(src)
+);
+check(
+	"预览定位纯函数：优先右侧、放不下翻左、夹回视口",
+	src.includes("function previewPosition(") && /rect\.right \+ gap/.test(src) && /rect\.left - gap - size\.width/.test(src)
+);
+check(
+	"预览用最轻的内容档（variant preview：无操作行/持仓卡，周期只留分时+日K）",
+	/var PERIODS_PREVIEW = \["today", "day"\];/.test(src) && /variant: "preview"/.test(src)
+);
+check(
+	"各列表行都接上了悬停预览（rowHover 被各页使用）",
+	["watchlist-tab.js", "market-tab.js", "screener-tab.js", "indices-tab.js", "otc-fund-tab.js"].every((f) =>
+		readFileSync(new URL(`./src/client/${f}`, import.meta.url), "utf8").includes("rowHover(")
+	)
+);
 check(
 	"右栏可钉浮窗并排对比（⧉ 按钮 + FloatLayer 渲染）",
 	src.includes("function FloatLayer(") &&
@@ -232,8 +262,8 @@ check(
 	const detailSrc = readFileSync(new URL("./src/client/detail.js", import.meta.url), "utf8");
 	const fundSrc = readFileSync(new URL("./src/client/fund-detail.js", import.meta.url), "utf8");
 	check(
-		"右栏紧凑版跳过资金流/F10 请求且渲染持仓卡（variant 门控）",
-		/if \(variant === "rail"\) return;/.test(detailSrc) && /variant === "rail" \? posCard\(\) : null/.test(detailSrc)
+		"右栏/预览档跳过资金流/F10 请求且右栏渲染持仓卡（variant 门控）",
+		/if \(variant !== "page"\) return;/.test(detailSrc) && /isRail \? posCard\(\) : null/.test(detailSrc)
 	);
 	check("详情内容不含窗口拖拽/视口夹取残留", !/getBoundingClientRect/.test(fundSrc));
 }
