@@ -69,7 +69,11 @@ check("registered.factory 是函数", typeof registered?.factory === "function")
 const exp = registered.factory(requireStub);
 check("导出 apply(ctx)", typeof exp?.apply === "function");
 check("导出 inject 数组", Array.isArray(exp?.inject));
-check("inject 为空（样式走 styles.js 自注入）", exp.inject.length === 0);
+// 踩坑守卫：`ctx.slots` 只有声明在 inject 里才会被注入到 apply 的 ctx。
+// 之前写成 inject:[] → 真实运行时 ctx.slots 为 undefined、注册抛错被 try/catch
+// 吞掉，表现为「侧栏行点了没反应」；而用桩 ctx 的测试发现不了（桩里塞了 slots）。
+// 官方模板 templates/decoration/client.js 与 dsh-armory 都声明了 'slots'。
+check("inject 声明了 slots（否则 ctx.slots 不存在，面板注册静默失败）", (exp?.inject ?? []).includes("slots"));
 
 // 3b) 侧边栏图标契约
 //
@@ -128,8 +132,24 @@ check(
 	src.includes("const posCard = () =>") && src.includes("h(PositionCell,") && src.includes("h(AlertForm,")
 );
 check(
-	"弹窗/窗口系统已退役（无遮罩、无 .lkb-win 窗体、无窗口栈、无 mountPanel）",
-	!/className: "lkb_overlay"/.test(src) && !/className: "lkb-win"/.test(src) && !/function topWindow\(/.test(src) && !/function mountPanel\(/.test(src)
+	"注册失败不静默（显式探活 ctx.slots + console.error 可诊断告警）",
+	src.includes('if (ctx?.slots === void 0)') && src.includes("[portfolio] ctx.slots 不可用") && src.includes("[portfolio] 面板注册失败：")
+);
+// ── 方向 A 叠加（浮窗并排对比）：C 的右栏之外，可把标的钉成浮窗 ──────────
+check(
+	"右栏可钉浮窗并排对比（⧉ 按钮 + FloatLayer 渲染）",
+	src.includes("function FloatLayer(") &&
+		src.includes("function FloatCard(") &&
+		src.includes("onPin: pinFloat") &&
+		src.includes("h(FloatLayer, { floats, onClose: closeFloat, onFocus: focusFloat })")
+);
+check(
+	"浮窗可拖拽且夹回视口（pointer 事件 + 边界夹取）",
+	/setPointerCapture\?\.\(e\.pointerId\)/.test(src) && /Math\.max\(8 - d\.w \+ 80/.test(src) && /window\.innerHeight - 40/.test(src)
+);
+check(
+	"浮窗复用右栏同一套紧凑内容（variant rail，不重复实现）",
+	/floats\.map\(\(f\) => h\(FloatCard/.test(src) && (src.match(/variant: "rail"/g) ?? []).length >= 2
 );
 // 基金页根节点如果不带类名、CSS 也不给基准字号，未显式设字号的文字（基金名等）
 // 会继承浏览器默认 16px，而面板其它页是 12.5px —— 表现为"整页字体比别的页大一圈"。

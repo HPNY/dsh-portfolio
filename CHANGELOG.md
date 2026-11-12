@@ -3,6 +3,18 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.23.0] - 2026-11-12
+
+### Fixed
+
+- **侧栏「持仓看板」入口消失、面板打不开（0.22.0 回归）**：根因是客户端 `inject` 声明为空数组——`ctx.slots` 只有在 `inject` 里声明 `'slots'` 后才会注入到 `apply` 的 ctx 上，于是 `ctx.slots.inject(...)` 抛 TypeError、被 `try/catch` 静默吞掉，**两个 slot 注册都没发生**，表现就是侧栏没有入口行、面板无从打开。修复为 `inject = ["slots"]`（与官方模板 `templates/decoration/client.js`、`dsh-armory` 的 `inject = ['slots', ...]` 一致）。
+- **注册失败不再静默**：`apply` 里先显式探活 `ctx.slots`，缺失时 `console.error` 给出可诊断信息（此前只有一个笼统的 `console.warn`）；slot 注册单独 `try/catch`，不再连带吞掉预警看护/时钟的挂载。
+- **测试盲区**：`client-bundle-test.mjs` 之前给 `apply` 塞了 `ctx.slots` 桩，恰好掩盖了 `inject` 漏声明。新增断言「`inject` 必须声明 `slots`」与「注册失败必须可见」，两条都做过变异验证（改坏必红）。
+
+### Added
+
+- **方向 A 叠加：浮窗并排对比**。右栏联动（方向 C）之外，右栏头部新增 **⧉ 钉浮窗**：把当前标的钉成可拖拽浮窗，多只并排对比（与弹窗时代的多窗对比同一用法）。浮窗复用右栏的紧凑内容组件（`variant: "rail"`），不重复实现；同码重复钉只置顶不重开；pointer 拖拽 + 视口夹取，避免拖出屏幕。完整分析仍在右栏 / ⤢ 钻取子页。
+
 ## [0.22.0] - 2026-11-12
 
 「弹窗 → 页面」整体迁移（设计方向 C·主从联动 + B·钻取子页，设计稿经确认后实施）。面板不再是全屏遮罩弹窗，而是 DSH 主区域的原生面板页面。

@@ -13,7 +13,11 @@ import { mountAlertWatcher } from "./watchlist-tab.js";
 import { PortfolioPage, PanelIcon } from "./panel.js";
 import { DISPLAY_NAME, PLUGIN_NAME } from "../../lib/identity.js";
 
-export const inject = [];
+// 必须声明 'slots' 依赖：`ctx.slots` 只有在 inject 里声明后才会被注入到 apply 的 ctx 上。
+// 漏了它 → 真实运行时 ctx.slots 为 undefined、注册抛错被 try/catch 吞掉，表现为
+// 「侧栏行点了没反应 / 面板根本不存在」；而用桩 ctx 的测试发现不了这个缺口
+// （官方模板 templates/decoration/client.js 与 dsh-armory 都声明了它）。
+export const inject = ["slots"];
 
 export function apply(ctx) {
 	// 这两件事必须随**插件**存活，而不是随面板：面板挂载/卸载随宿主的视图切换，
@@ -23,6 +27,13 @@ export function apply(ctx) {
 	const themeClock = startThemeClock();
 	const alertWatcher = mountAlertWatcher();
 	const disposers = [];
+	// 注册失败绝不能静默：上一版把 slots 注册包在同一个 try 里，一旦 ctx.slots
+	// 不存在（inject 漏声明），异常被吞掉，表现就是「侧栏行点了没反应」且控制台
+	// 也看不出所以然。这里先显式探活并给出可诊断的告警，再各自独立兜住异常。
+	if (ctx?.slots === void 0) {
+		console.error("[portfolio] ctx.slots 不可用——面板无法注册。请确认 package.json 的 dsh.client 配置与 inject 声明（需要 'slots'）。");
+		return;
+	}
 	try {
 		// 官方面板注册（声明感知的 slots.inject：声明出现时注册、折叠时回收）。
 		// label 走注册参数字符串；本插件界面文案为中文（与 DISPLAY_NAME 一致）。
@@ -34,12 +45,12 @@ export function apply(ctx) {
 		ctx.slots.inject("sidebar.panellist", () => {
 			ctx.slots.register({ name: "sidebar.panellist", id: PLUGIN_NAME, order: -1, label: DISPLAY_NAME }, PanelIcon);
 		});
-		disposers.push(() => alertWatcher.dispose());
-		disposers.push(() => sessionClock());
-		disposers.push(() => themeClock());
 	} catch (error) {
-		console.warn("[portfolio] mount failed:", error);
+		console.error("[portfolio] 面板注册失败：", error);
 	}
+	disposers.push(() => alertWatcher.dispose());
+	disposers.push(() => sessionClock());
+	disposers.push(() => themeClock());
 	ctx.effect(
 		() => () => {
 			for (const dispose of disposers.splice(0)) dispose();

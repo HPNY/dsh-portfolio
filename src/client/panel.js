@@ -5,7 +5,7 @@
 // 不再自带 createRoot / 遮罩 / 拖拽 / 关闭按钮；个股与基金详情是右栏联动
 // （DetailRail），「⤢ 打开完整详情」钻取为子页（SubDetail）。弹窗时代的
 // 窗口系统（wins/z 序/拖拽/ESC 关窗）已全部退役。
-import { h, useCallback, useEffect, useState } from "./react.js";
+import { h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, calendarHint, closeConfirm, ConfirmDialog, confirmListeners, cnMarket, loadAnalysisConfig, marketOpenLabel, normCode, onToast, ToastStack, useAnalysisConfig, useInterval } from "./core.js";
 import { IndicesTab } from "./indices-tab.js";
 import { MarketTab } from "./market-tab.js";
@@ -113,9 +113,12 @@ export function escTarget(view) {
 
 export function PortfolioPage() {
 	const [tab, setTab] = useState("indices");
-	// 右栏联动的当前选中（个股/基金）与钻取子页快照；页面化后没有窗口栈。
+	// 右栏联动的当前选中（个股/基金）与钻取子页快照。
 	const [selected, setSelected] = useState(null);
 	const [drill, setDrill] = useState(null);
+	// 浮窗（方向 A 叠加）：右栏常驻联动之外，用户可把若干标的**钉成浮窗**并排对比
+	// （与弹窗时代的"多开对比"同一用法）。浮窗只读展示报价+分时，不抢右栏职责。
+	const [floats, setFloats] = useState([]);
 	const [watchCodes, setWatchCodes] = useState([]);
 	const [watchBump, setWatchBump] = useState(0);
 	const [settingsOpen, setSettingsOpen] = useState(false);
@@ -146,6 +149,24 @@ export function PortfolioPage() {
 	const bumpWatch = () => setWatchBump((v) => v + 1);
 	const [fundBump, setFundBump] = useState(0);
 	const bumpFund = () => setFundBump((v) => v + 1);
+	// 浮窗：把当前右栏标的钉成浮窗（同码已开则提到最前，不重复开）。
+	// 位置按已开数量错开，避免完全重叠；z 递增保证后开的在上。
+	const pinFloat = useCallback(() => {
+		if (selected === null) return;
+		setFloats((prev) => {
+			const exist = prev.find((f) => f.code === selected.code);
+			const z = (prev.reduce((m, f) => Math.max(m, f.z), 100) ?? 100) + 1;
+			if (exist) return prev.map((f) => (f.code === selected.code ? { ...f, z } : f));
+			const k = prev.length;
+			return [...prev, { ...selected, id: `${selected.code}-${z}`, x: 24 + k * 28, y: 96 + k * 24, z }];
+		});
+	}, [selected]);
+	const closeFloat = (code) => setFloats((prev) => prev.filter((f) => f.code !== code));
+	const focusFloat = (code) =>
+		setFloats((prev) => {
+			const z = (prev.reduce((m, f) => Math.max(m, f.z), 100) ?? 100) + 1;
+			return prev.map((f) => (f.code === code ? { ...f, z } : f));
+		});
 	// In-panel confirm dialog host (replaces native window.confirm).
 	const [confirmReq, setConfirmReq] = useState(null);
 	// 预警 toast：AlertWatcher 常驻在 entry.js（随插件而不是随面板存活），
@@ -313,10 +334,14 @@ export function PortfolioPage() {
 								sel: selected,
 								onClose: () => setSelected(null),
 								onDrill: () => setDrill(selected),
+								onPin: pinFloat,
+								pinned: floats.some((f) => f.code === selected.code),
 								onWatched: bumpWatch,
 								onFundChanged: bumpFund,
 							})
 				),
+		// 浮窗层（方向 A 叠加）：钉住的标的并排对比，可拖拽/关闭/置顶。
+		floats.length === 0 ? null : h(FloatLayer, { floats, onClose: closeFloat, onFocus: focusFloat }),
 		h(
 			"div",
 			{ className: "lkb_foot" },
@@ -349,8 +374,70 @@ function SubDetail({ sel, onBack, onWatched, onFundChanged }) {
 	);
 }
 
-/** 右栏联动详情（设计方向 C）：列表点行即切换，✕ 收起，⤢ 钻取完整详情。 */
-function DetailRail({ sel, onClose, onDrill, onWatched, onFundChanged }) {
+/** 浮窗层（方向 A 叠加在方向 C 之上）：把钉住的标的做成可拖拽浮窗并排对比。
+ *
+ * 与弹窗时代的多窗对比是同一用法，但职责收窄：浮窗只承载「报价 + 分时」的轻量
+ * 对比视图（完整分析仍在右栏 / 钻取子页），所以不开满详情、不抢右栏。
+ * 拖拽用 pointer 事件 + 视口夹取，逻辑与旧详情窗一致（避免浮窗被拖出屏幕）。
+ */
+function FloatLayer({ floats, onClose, onFocus }) {
+	return h(
+		"div",
+		{ className: "lkb-floatLayer" },
+		floats.map((f) => h(FloatCard, { key: f.id, item: f, onClose: () => onClose(f.code), onFocus: () => onFocus(f.code) }))
+	);
+}
+
+function FloatCard({ item, onClose, onFocus }) {
+	const [pos, setPos] = useState({ x: item.x, y: item.y });
+	const dragRef = useRef(null);
+	const onPointerDown = (e) => {
+		onFocus();
+		if (e.button !== 0) return;
+		if (e.target.closest("button") !== null) return; // 让按钮正常工作
+		const el = e.currentTarget;
+		const rect = el.getBoundingClientRect();
+		dragRef.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top, w: rect.width, h: rect.height };
+		el.setPointerCapture?.(e.pointerId);
+		e.preventDefault();
+	};
+	const onPointerMove = (e) => {
+		const d = dragRef.current;
+		if (d === null) return;
+		// 夹回视口：浮窗不能被拖出屏幕（右/下边界留 8px，至少留 80px 可见）
+		const x = Math.max(8 - d.w + 80, Math.min(e.clientX - d.dx, window.innerWidth - 80));
+		const y = Math.max(8, Math.min(e.clientY - d.dy, window.innerHeight - 40));
+		setPos({ x, y });
+	};
+	const onPointerUp = (e) => {
+		dragRef.current = null;
+		e.currentTarget.releasePointerCapture?.(e.pointerId);
+	};
+	return h(
+		"div",
+		{
+			className: "lkb-floatWin",
+			style: { left: pos.x, top: pos.y, zIndex: item.z },
+			onPointerDown: onPointerDown,
+			onPointerMove: onPointerMove,
+			onPointerUp: onPointerUp,
+			onPointerCancel: onPointerUp,
+		},
+		h(
+			"div",
+			{ className: "lkb-floatHead", title: "拖动移动 · 点击置顶" },
+			h("span", { className: "lkb-floatTitle" }, item.name ?? item.code),
+			h("span", { className: "lkb-code" }, item.code),
+			h("button", { className: "lkb_close", title: "关闭浮窗", onClick: onClose }, "✕")
+		),
+		item.kind === "fund"
+			? h(FundDetailContent, { fund: item.fund, variant: "rail" })
+			: h(StockDetailContent, { code: item.code, name: item.name, isIndex: item.isIndex, variant: "rail" })
+	);
+}
+/** 右栏联动详情（设计方向 C）：列表点行即切换，✕ 收起，⤢ 钻取完整详情，
+ *  ⧉ 把当前标的钉成浮窗（方向 A 叠加：右栏看一只、浮窗并排对比多只）。 */
+function DetailRail({ sel, onClose, onDrill, onPin, pinned, onWatched, onFundChanged }) {
 	return h(
 		"aside",
 		{ className: "lkb-rail" },
@@ -359,6 +446,18 @@ function DetailRail({ sel, onClose, onDrill, onWatched, onFundChanged }) {
 			{ className: "lkb-railHead" },
 			h("span", { className: "lkb-railTitle" }, sel.kind === "fund" ? sel.fund?.name || sel.name || sel.code : sel.name ?? sel.code),
 			h("span", { className: "lkb-code" }, sel.code),
+			h(
+				"button",
+				{
+					className: "lkb-pinBtn",
+					type: "button",
+					title: pinned ? "已钉为浮窗（可并排对比）" : "钉为浮窗并排对比",
+					"data-active": pinned ? "true" : "false",
+					"aria-pressed": pinned ? "true" : "false",
+					onClick: onPin,
+				},
+				"⧉"
+			),
 			h("button", { className: "lkb_close", title: "收起详情栏", onClick: onClose }, "✕")
 		),
 		sel.kind === "fund"

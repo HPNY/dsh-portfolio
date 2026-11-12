@@ -28,6 +28,26 @@ const CSS = `
 .lkb-posItem{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dsw-alias-label-secondary,#5f6672)}
 .lkb-posLabel{color:var(--dsw-alias-label-tertiary,#a2a7b3)}
 .lkb-posEmpty{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px}
+/* ---- 浮窗层（方向 A 叠加）：右栏联动之外，钉住的标的可并排对比 ---- */
+.lkb-floatLayer{position:fixed;inset:0;z-index:2147483600;pointer-events:none}
+.lkb-floatWin{position:fixed;pointer-events:auto;width:min(420px,92vw);max-height:min(72vh,620px);display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:14px;box-shadow:0 20px 60px #00000040;animation:lkb-pop .14s ease-out}
+.lkb-floatHead{flex:none;display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed);background:var(--dsw-alias-bg-base,#fff);cursor:grab;touch-action:none;user-select:none}
+.lkb-floatHead:active{cursor:grabbing}
+.lkb-floatTitle{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lkb-floatHead .lkb_close{margin-left:auto;font-size:17px;padding:2px 6px}
+/* 浮窗里的紧凑版：内容自身滚动，卡片内边距收窄（与右栏同一套内容组件） */
+.lkb-floatWin .lkb-detail{overflow:hidden}
+.lkb-floatWin .lkb_body,.lkb-floatWin .lkb-fundBody{padding:10px 12px;gap:10px}
+.lkb-floatWin .lkb-hero{padding:10px 12px}
+.lkb-floatWin .lkb-heroPrice{font-size:22px}
+.lkb-floatWin .lkb-heroGrid{grid-template-columns:repeat(2,1fr)}
+/* 右栏/浮窗共用的"钉住"按钮 */
+.lkb-pinBtn{cursor:pointer;background:0 0;border:none;color:var(--dsw-alias-label-secondary,#8a8f9c);font-size:15px;line-height:1;padding:4px 7px;border-radius:6px}
+.lkb-pinBtn:hover{background:var(--dsw-alias-interactive-bg-hover,#f2f3f5);color:var(--dsw-alias-label-primary)}
+.lkb-pinBtn[data-active="true"]{color:#3b5bdb;background:#3b5bdb14}
+body[data-ds-dark-theme] .lkb-floatWin{background:#2c2c2e;border-color:#ffffff1f;box-shadow:0 20px 60px #000000cc}
+body[data-ds-dark-theme] .lkb-floatHead{background:#2c2c2e;border-color:#ffffff14}
+body[data-ds-dark-theme] .lkb-pinBtn[data-active="true"]{color:#a5b4fc;background:#6378dc38}
 /* 侧栏面板行图标（sidebar.panellist 注册组件）：尺寸由宿主的 size 参数定（16/18）。 */
 .lkb_panelIcon{display:inline-flex;align-items:center;justify-content:center;flex:none}
 .lkb_panelIcon svg{width:100%;height:100%;display:block}
