@@ -2,16 +2,19 @@
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 
 const CSS = `
-/* 侧边栏条目：逐项对齐 DSH 原生条目 .wtg9ga_panelRow。
+/* 侧边栏条目 —— **降级兜底**样式（找不到原生行可复刻、或旧版 GUI 时自建的入口，
+   见 sidebar.js 的 cloneNativeEntry / placeEntry）。首选路径直接复刻原生行 DOM，
+   几何由借来的原生 class 决定，根本不经过这里的数值。
    注意：这段是模板字符串，注释里**不能出现反引号**，否则会提前截断字符串。
-   下面这些数值不是猜的，是从 app.asar 里 DSH 自己的 CSS 抄来的：
-     min-height:36px  padding:7px 8px  gap:8px  margin:0 2px  line-height:22px
+   下面这些数值不是猜的，是从 app.asar 里 DSH 自己的 .panelRow 抄来的（2026-11 版）：
+     min-height:32px  padding:5px 9px  gap:6px  line-height:22px
      border-radius:var(--dsw-radius-md)  color:var(--dsw-alias-label-primary)  font:inherit
-   连带列表间距也是原生的（.wtg9ga_panelList 为 gap:2px），所以纵向节奏自动一致。 */
-/* 入口是插在 .wtg9ga_root 下、nav.wtg9ga_panelList 的**外面**（见 sidebar.js 的 placeEntry），
+   行高曾经是 36px——那是旧版 DSH 的值，跟着原生改过一次之后就别再"对齐旧版"了。
+   连带列表间距也是原生的（panelList 为 gap:2px），所以纵向节奏自动一致。 */
+/* 降级路径插在 sidebar root 下、nav 的**外面**（见 sidebar.js 的 placeEntry），
    拿不到那个 nav 的 gap:2px。这里用 margin-bottom:2px 把这一份间距补上，行距就与原生一致。
    折叠态由下面的规则把 margin 归零。 */
-.lkb_entry{box-sizing:border-box;border-radius:var(--dsw-radius-md);min-height:36px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:none;align-items:center;gap:8px;margin:0 2px 2px;padding:7px 8px;line-height:22px;display:flex}
+.lkb_entry{box-sizing:border-box;border-radius:var(--dsw-radius-md);min-height:32px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:none;align-items:center;gap:6px;margin:0 2px 2px;padding:5px 9px;line-height:22px;display:flex}
 .lkb_entry:hover{background:var(--dsw-alias-interactive-bg-hover)}
 /* 图标槽位：与原生 .wtg9ga_panelGlyph 完全一致 —— 只做 flex 居中、不定宽高，
    尺寸由其中 SVG 自己决定。原生图标实际渲染在 16x16，24 的 viewBox 等比缩到 16px。 */

@@ -92,26 +92,53 @@ check(
 	src.includes(".lkb_entryIcon svg{display:block;width:16px;height:16px}") && src.includes('svg.style.width = "16px"')
 );
 // 文字节点与图标槽位都要借用原生菜单项的 class，才能和「时钟」「四角星」对齐
+// （降级路径：首选路径 cloneNativeEntry 直接复刻整行，见下方断言）
 check("挂载后借用原生菜单项 class（图标槽位 + 文字节点）", src.includes("function adoptNativeClasses(") && src.includes("nativeIcon.parentElement"));
 // 行内 style 优先级高于类选择器，槽位尺寸不会被借来的 class 改掉
 check(
 	"图标几何写进行内 style",
 	src.includes("function lockIconGeometry(") && src.includes('slot.style.flex = "none"') && src.includes('svg.style.height = "16px"')
 );
-// 行样式数值全部来自 app.asar 里 DSH 自己的 .wtg9ga_panelRow，不是估的
+// ── 入口行的挂载契约（根治「不随整体滚动、单独显示」）────────────────────
+//
+// 入口必须挂进**滚动视口里的面板导航 nav**（DSH 侧边栏的面板行都在那，菜单整体
+// 滚动时随视口滚走）。旧实现插在 sidebar root 下、nav 外面的固定区，所以菜单滚
+// 它不动、也脱离菜单组。视口的稳定标记是 data-sidebar-scrollport（ui-sidebar
+// README 明言"供测试和集成方定位"）。
 check(
-	"行样式与原生 .wtg9ga_panelRow 一致（min-height36 / padding 7px 8px / gap 8px / margin 0 2px / line-height22）",
-	src.includes("min-height:36px") &&
-		src.includes("padding:7px 8px") &&
-		src.includes("gap:8px") &&
-		src.includes("margin:0 2px") &&
-		src.includes("line-height:22px") &&
-		src.includes("color:var(--dsw-alias-label-primary)") &&
-		src.includes("font:inherit")
+	"入口挂进滚动视口内的面板导航 nav（首选宿主是 nav，不是 sidebar root）",
+	/\[data-sidebar-scrollport\]/.test(src) && /nav\[class\*=.{1,3}panelList.{1,3}\]/.test(src)
 );
-// 入口插在 nav.wtg9ga_panelList 外面，拿不到那个 nav 的 gap:2px，靠 margin-bottom 补齐，
-// 否则和相邻原生行的行距会少 2px。
-check("行距补齐原生 panelList 的 gap:2px", src.includes("margin:0 2px 2px"));
+check("入口作为 nav 的第一行插入（保持「持仓看板」在菜单组顶部）", src.includes("host.insertBefore(entry, host.firstElementChild)"));
+// 原生行的几何（行高/padding/gap/圆角/悬停）随 DSH 版本变过（36px→32px），
+// 写死数值只能对齐一版。首选路径直接 cloneNode 原生行借几何，永不过期。
+check(
+	"入口复刻原生面板行借几何（cloneNode，而不是写死像素）",
+	src.includes("function cloneNativeEntry(") && src.includes("model.cloneNode(true)")
+);
+check(
+	"复刻体清理菜单语义属性（aria-haspopup/expanded/current/describedby）",
+	src.includes('"aria-haspopup"') && src.includes('"aria-describedby"') && src.includes("removeAttribute(attr)")
+);
+check(
+	"复刻体换上品牌图标与入口文案并接上点击",
+	src.includes("labelNode.textContent = options.label()") && src.includes("entry.addEventListener(\"click\", options.onToggle)")
+);
+// 降级兜底（找不到原生行可复刻 / 旧版 GUI）：自建行的样式数值同样抄自
+// app.asar 里 DSH 自己的 .panelRow（2026-11 版：min-height32 / padding 5px 9px /
+// gap 6px）。它插在 nav 外面拿不到 gap:2px，靠 margin-bottom 补齐行距。
+const entryRule = /\.lkb_entry\{[^}]*\}/.exec(src)?.[0] ?? "";
+check(
+	"降级兜底行样式对齐当前原生 .panelRow（min-height32 / padding 5px 9px / gap 6px / margin 补间距 / line-height22）",
+	entryRule.includes("min-height:32px") &&
+		entryRule.includes("padding:5px 9px") &&
+		entryRule.includes("gap:6px") &&
+		entryRule.includes("margin:0 2px 2px") &&
+		entryRule.includes("line-height:22px") &&
+		entryRule.includes("color:var(--dsw-alias-label-primary)") &&
+		entryRule.includes("font:inherit")
+);
+check("折叠态入口与原生 rail 行一致（36x36、文字隐藏）", /\[data-sidebar-collapsed\] \.lkb_entry\{[^}]*width:36px/.test(src) && src.includes("[data-sidebar-collapsed] .lkb_entryLabel{display:none}"));
 // 基金页根节点如果不带类名、CSS 也不给基准字号，未显式设字号的文字（基金名等）
 // 会继承浏览器默认 16px，而面板其它页是 12.5px —— 表现为"整页字体比别的页大一圈"。
 check(
