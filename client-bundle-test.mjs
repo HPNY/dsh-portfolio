@@ -26,8 +26,7 @@ check("插件 id", src.includes('id: "dsh-portfolio"'));
 // 带标签的模板调用）。这条在真正执行 factory 之前就先检查 CSS 是否完整。
 check(
 	"样式表未被反引号截断（CSS 完整）",
-	/\.lkb_entry\{box-sizing:border-box;border-radius:var\(--dsw-radius-md\)/.test(src) &&
-		/\.lkb_entryIcon svg\{display:block;width:16px;height:16px\}/.test(src)
+	/\.lkb-page\{[^}]*display:flex/.test(src) && /\.lkb_panelIcon svg\{width:100%;height:100%/.test(src)
 );
 
 // 2) React 不进 bundle
@@ -87,58 +86,51 @@ check(
 		src.includes('fill="none"')
 );
 check("图标不写死颜色（无 #000/#ccc 之类填充）", !/fill="#[0-9a-fA-F]{3,6}"/.test(src) && !/stroke="#[0-9a-fA-F]{3,6}"/.test(src));
+// 面板行图标由 sidebar.panellist 的注册组件渲染，尺寸跟随宿主的 size 参数
+// （展开 16 / 折叠栏 18），不再写死 16x16。
 check(
-	"图标是 16x16（与原生 .wtg9ga_panelGlyph 里 16px 的图标同尺寸）",
-	src.includes(".lkb_entryIcon svg{display:block;width:16px;height:16px}") && src.includes('svg.style.width = "16px"')
+	"面板行图标尺寸跟随宿主 size 参数（不写死）",
+	/style:\s*\{\s*width: size \+ "px",\s*height: size \+ "px",?\s*\}/.test(src) && /\.lkb_panelIcon svg\{width:100%;height:100%/.test(src)
 );
-// 文字节点与图标槽位都要借用原生菜单项的 class，才能和「时钟」「四角星」对齐
-// （降级路径：首选路径 cloneNativeEntry 直接复刻整行，见下方断言）
-check("挂载后借用原生菜单项 class（图标槽位 + 文字节点）", src.includes("function adoptNativeClasses(") && src.includes("nativeIcon.parentElement"));
-// 行内 style 优先级高于类选择器，槽位尺寸不会被借来的 class 改掉
-check(
-	"图标几何写进行内 style",
-	src.includes("function lockIconGeometry(") && src.includes('slot.style.flex = "none"') && src.includes('svg.style.height = "16px"')
-);
-// ── 入口行的挂载契约（根治「不随整体滚动、单独显示」）────────────────────
+// ── 官方 slot 注册（sidebar.panellist + main），替代弹窗时代的 DOM 挂载 ────
 //
-// 入口必须挂进**滚动视口里的面板导航 nav**（DSH 侧边栏的面板行都在那，菜单整体
-// 滚动时随视口滚走）。旧实现插在 sidebar root 下、nav 外面的固定区，所以菜单滚
-// 它不动、也脱离菜单组。视口的稳定标记是 data-sidebar-scrollport（ui-sidebar
-// README 明言"供测试和集成方定位"）。
+// 侧栏入口不再是手搓 DOM：注册 sidebar.panellist（行点击由宿主承担，自动获得
+// 选中态 / 折叠栏 / 固定 / 更多菜单），同一个 id 寻址 main slot 的主面板页面。
+// 弹窗时代的 sidebar.js（cloneNode 复刻原生行 + MutationObserver 补挂）已退役。
 check(
-	"入口挂进滚动视口内的面板导航 nav（首选宿主是 nav，不是 sidebar root）",
-	/\[data-sidebar-scrollport\]/.test(src) && /nav\[class\*=.{1,3}panelList.{1,3}\]/.test(src)
-);
-check("入口作为 nav 的第一行插入（保持「持仓看板」在菜单组顶部）", src.includes("host.insertBefore(entry, host.firstElementChild)"));
-// 原生行的几何（行高/padding/gap/圆角/悬停）随 DSH 版本变过（36px→32px），
-// 写死数值只能对齐一版。首选路径直接 cloneNode 原生行借几何，永不过期。
-check(
-	"入口复刻原生面板行借几何（cloneNode，而不是写死像素）",
-	src.includes("function cloneNativeEntry(") && src.includes("model.cloneNode(true)")
+	"注册官方面板行 sidebar.panellist（id = 插件名 + 图标组件）",
+	src.includes('ctx.slots.inject("sidebar.panellist"') && src.includes('name: "sidebar.panellist"') && src.includes(", PanelIcon)")
 );
 check(
-	"复刻体清理菜单语义属性（aria-haspopup/expanded/current/describedby）",
-	src.includes('"aria-haspopup"') && src.includes('"aria-describedby"') && src.includes("removeAttribute(attr)")
+	"注册主面板页面 main（key = 插件名 + PortfolioPage 组件）",
+	src.includes('ctx.slots.inject("main"') && src.includes('name: "main"') && src.includes(", PortfolioPage)")
+);
+check("面板行带 order 排进原生导航组", /order: -?\d+/.test(src));
+check(
+	"DOM 注入式侧边栏挂载已退役（无 cloneNativeEntry / mountSidebarEntry / scrollport 定位）",
+	!/function cloneNativeEntry\(/.test(src) && !/function mountSidebarEntry\(/.test(src) && !/data-sidebar-scrollport/.test(src)
+);
+// ── 页面形态：主从联动右栏（方向 C）+ 钻取子页（方向 B）────────────────
+check(
+	"点行联动右栏详情（DetailRail，不再是开窗）",
+	src.includes("function DetailRail(") && /h\(\s*"aside",\s*\{ className: "lkb-rail" \}/.test(src)
 );
 check(
-	"复刻体换上品牌图标与入口文案并接上点击",
-	src.includes("labelNode.textContent = options.label()") && src.includes("entry.addEventListener(\"click\", options.onToggle)")
+	"右栏「⤢ 打开完整详情」钻取子页（SubDetail，面包屑返回，变体 rail/page 分工）",
+	src.includes("function SubDetail(") && src.includes("onDrill: () => setDrill(selected)") && src.includes('variant: "page"') && src.includes('variant: "rail"')
 );
-// 降级兜底（找不到原生行可复刻 / 旧版 GUI）：自建行的样式数值同样抄自
-// app.asar 里 DSH 自己的 .panelRow（2026-11 版：min-height32 / padding 5px 9px /
-// gap 6px）。它插在 nav 外面拿不到 gap:2px，靠 margin-bottom 补齐行距。
-const entryRule = /\.lkb_entry\{[^}]*\}/.exec(src)?.[0] ?? "";
 check(
-	"降级兜底行样式对齐当前原生 .panelRow（min-height32 / padding 5px 9px / gap 6px / margin 补间距 / line-height22）",
-	entryRule.includes("min-height:32px") &&
-		entryRule.includes("padding:5px 9px") &&
-		entryRule.includes("gap:6px") &&
-		entryRule.includes("margin:0 2px 2px") &&
-		entryRule.includes("line-height:22px") &&
-		entryRule.includes("color:var(--dsw-alias-label-primary)") &&
-		entryRule.includes("font:inherit")
+	"ESC 层级：先退钻取再收右栏（escTarget 纯函数接线）",
+	src.includes("function escTarget(") && src.includes("escTarget({ drill: drill !== null, selected: selected !== null })")
 );
-check("折叠态入口与原生 rail 行一致（36x36、文字隐藏）", /\[data-sidebar-collapsed\] \.lkb_entry\{[^}]*width:36px/.test(src) && src.includes("[data-sidebar-collapsed] .lkb_entryLabel{display:none}"));
+check(
+	"右栏持仓卡复用自选页的内联编辑与预警表单",
+	src.includes("const posCard = () =>") && src.includes("h(PositionCell,") && src.includes("h(AlertForm,")
+);
+check(
+	"弹窗/窗口系统已退役（无遮罩、无 .lkb-win 窗体、无窗口栈、无 mountPanel）",
+	!/className: "lkb_overlay"/.test(src) && !/className: "lkb-win"/.test(src) && !/function topWindow\(/.test(src) && !/function mountPanel\(/.test(src)
+);
 // 基金页根节点如果不带类名、CSS 也不给基准字号，未显式设字号的文字（基金名等）
 // 会继承浏览器默认 16px，而面板其它页是 12.5px —— 表现为"整页字体比别的页大一圈"。
 check(
@@ -152,16 +144,17 @@ check(
 	"基金列表用真正的表格（table + thead + tbody）",
 	src.includes('"table"') && src.includes('"thead"') && src.includes('"tbody"')
 );
-// 点基金行 → 打开基金详情浮窗（与自选点行开详情窗同一套交互）；旧的行内编辑页已删除。
+// 点基金行 → 右栏联动基金详情（与自选点行同一套联动）；旧的行内编辑页已删除。
 check(
-	"点基金行打开详情浮窗（旧编辑页已删除）",
-	src.includes("function FundDetailWindow(") &&
+	"点基金行联动右栏基金详情（旧编辑页与旧浮窗都已删除）",
+	src.includes("function FundDetailContent(") &&
 		src.includes("onClick: () => onOpen(fund)") &&
 		!src.includes("FundEditForm") &&
-		!src.includes("colSpan: 7")
+		!src.includes("colSpan: 7") &&
+		!src.includes("function FundDetailWindow(")
 );
 check(
-	"基金详情浮窗走 Host 的 history 接口（阶段涨幅由 Host 算）",
+	"基金详情走 Host 的 history 接口（阶段涨幅由 Host 算）",
 	src.includes("otcFundHistory") && src.includes("stageReturns")
 );
 // 行情页搜索要能查场外基金；详情浮窗的「加入基金」是唯一入口，旧的「＋ 添加基金」表单已删。
@@ -199,30 +192,30 @@ check(
 			/\["today", "m5day", "day", "week", "month", "quarter", "year", "m120", "m60", "m30", "m15", "m5", "m1"\]/.test(detailSrc)
 	);
 }
-// 详情窗内容超长时必须**可滚动**，不能被 .lkb-win 的 overflow:hidden 裁掉。
+// 详情内容超长时必须**可滚动**，不能被 overflow:hidden 裁掉。
 // 关键是 flex 子项要 min-height:0 —— 默认 min-height:auto 会撑满父级高度，
-// 于是滚动条根本不出现，底部内容（财务摘要、重仓股列表）被圆角边切掉。
+// 于是滚动条根本不出现，底部内容（财务摘要、重仓股列表）被切掉。
 {
 	const stylesSrc = readFileSync(new URL("./src/client/styles.js", import.meta.url), "utf8");
 	check(
-		"详情窗 body 可滚动（flex:1 + min-height:0，不会被裁掉）",
+		"详情内容可滚动（.lkb_body / .lkb-fundBody：flex:1 + min-height:0，不会被裁掉）",
 		/\.lkb_body\{[^}]*min-height:0/.test(stylesSrc) && /\.lkb-fundBody\{[^}]*min-height:0/.test(stylesSrc)
 	);
-	// 浮窗高度要封顶，否则 88vh 的窗口在小屏上会压出可视区
-	check("浮窗高度封顶（max-height 上限）", /max-height:min\(88vh,\d+px\)/.test(stylesSrc));
+	// 右栏宽度要有界：太窄挤爆内容、太宽挤扁列表
+	check("右栏宽度有界（clamp(320px,36%,440px)）", /\.lkb-rail\{[^}]*width:clamp\(320px,36%,440px\)/.test(stylesSrc));
 	// 周期按钮 13 个档位，必须不截断文字 —— 否则标题一长就挤成 "分\n时"。
 	check("周期按钮文字不截断（white-space:nowrap）", /\.lkb-period\{[^}]*white-space:nowrap/.test(stylesSrc));
 }
-// 详情窗开屏要居中并在挂载后按实际尺寸夹回视口内，否则每次都得手动拖。
+// 右栏紧凑版不渲染资金流/F10，也不该发这两组请求（variant 门控在内容层），
+// 更不该把窗口时代的视口夹取/拖拽代码带回来。
 {
+	const detailSrc = readFileSync(new URL("./src/client/detail.js", import.meta.url), "utf8");
 	const fundSrc = readFileSync(new URL("./src/client/fund-detail.js", import.meta.url), "utf8");
-	const panelSrc = readFileSync(new URL("./src/client/panel.js", import.meta.url), "utf8");
 	check(
-		"详情窗开屏居中且夹回视口（不再错开溢出屏幕）",
-		/getBoundingClientRect/.test(readFileSync(new URL("./src/client/detail.js", import.meta.url), "utf8")) &&
-			/getBoundingClientRect/.test(fundSrc) &&
-			!/k \* 28/.test(panelSrc)
+		"右栏紧凑版跳过资金流/F10 请求且渲染持仓卡（variant 门控）",
+		/if \(variant === "rail"\) return;/.test(detailSrc) && /variant === "rail" \? posCard\(\) : null/.test(detailSrc)
 	);
+	check("详情内容不含窗口拖拽/视口夹取残留", !/getBoundingClientRect/.test(fundSrc));
 }
 // 系统性守卫：src/client 里用到的每一个 API.<key> 都必须在 core.js 的 API 表里登记。
 // 「表里没登记」的表现是 `API.xxx` 变 undefined、请求打到 /undefined?... 404，
@@ -242,13 +235,13 @@ check(
 	check("src/client 用到的 API.<key> 都在 core.js 的 API 表里登记", missing.length === 0, `未登记: ${missing.join(", ") || "无"}`);
 }
 check(
-	"详情浮窗有「加入基金 / 移出基金」按钮，且「＋ 添加基金」入口已删除",
+	"详情里有「加入基金 / 移出基金」按钮，且「＋ 添加基金」入口已删除",
 	src.includes("加入基金") &&
 		src.includes("移出基金") &&
 		!src.includes("AddFundForm") &&
 		!src.includes("＋ 添加基金")
 );
-// 基金详情浮窗必须与股票详情窗用同一套卡片语言（.lkb-chartBox + .lkb-chartTitle + .lkb-detailQuote），
+// 基金详情内容必须与股票详情内容用同一套卡片语言（.lkb-chartBox + .lkb-chartTitle + .lkb-detailQuote），
 // 不允许再出现自定义的 hero 排版——那是"看着不像同一个产品"的来源。
 {
 	const fundSrc = readFileSync(new URL("./src/client/fund-detail.js", import.meta.url), "utf8");
@@ -283,7 +276,7 @@ check(
 		src.includes('"收益率 ", h("b", { className: trend(returnPct)')
 );
 // 自选表格的「昨收」列：表头 + 数据单元格都要在，且取的是行情的 prevClose 字段。
-// 注意详情弹窗里也有"昨收"，但那走的是 item(...) 助手，用 td 写法区分。
+// 注意详情内容里也有"昨收"，但那走的是 item(...) 助手，用 td 写法区分。
 check("自选表格有「昨收」列（行情字段 prevClose）", src.includes('}, "昨收"),') && src.includes('h("td", null, fmt(q?.prevClose))'));
 // 列调整：表头「盈亏百分比」简化为「盈亏」；「解套需涨」「解套进度」两列都已删除。
 // 注意 tooltip 里仍会描述"盈亏百分比"这个含义，所以只断言表头写法，不否证整个词。
@@ -306,7 +299,8 @@ check("头部标题类名与 CSS 一致（lkb_headTitle，不是 lkb-headTitle�
 // 4) apply() 在最小 DOM 桩上必须能挂起来
 //
 // 预警看护与交易日历时钟都挪到了 entry.js（随插件而不是随面板存活），所以
-// apply() 现在会真的碰 document —— 用桩跑一遍，确认 mount 链路不抛。
+// apply() 现在会真的碰 document —— 用桩跑一遍，确认挂载链路不抛，且两个
+// 官方 slot（main + sidebar.panellist）都确实发出了注册。
 {
 	const stubEl = () => ({
 		dataset: {},
@@ -328,17 +322,22 @@ check("头部标题类名与 CSS 一致（lkb_headTitle，不是 lkb-headTitle�
 		querySelector: () => null,
 	};
 	let applyError = null;
-	const ctx = { effect: () => {} };
-	const origFetch = globalThis.fetch;
-	const origObserver = globalThis.MutationObserver;
-	// 侧边栏入口用 MutationObserver 盯宿主 DOM；桩一个空实现，免得 mount 抛错。
-	globalThis.MutationObserver = class {
-		observe() {}
-		disconnect() {}
-		takeRecords() {
-			return [];
-		}
+	const slotCalls = [];
+	const ctx = {
+		effect: () => {},
+		slots: {
+			inject: (owner, cb) => {
+				slotCalls.push(`inject:${owner}`);
+				cb();
+				return () => {};
+			},
+			register: (reg) => {
+				slotCalls.push(`register:${reg.name}`);
+				return () => {};
+			},
+		},
 	};
+	const origFetch = globalThis.fetch;
 	// 日历拉取是后台异步的；这里给一个永不 resolve 的 fetch，避免测试退出前
 	// 冒出未处理的 reject（真实环境走浏览器 fetch）。
 	globalThis.fetch = () => new Promise(() => {});
@@ -348,9 +347,13 @@ check("头部标题类名与 CSS 一致（lkb_headTitle，不是 lkb-headTitle�
 		applyError = error;
 	} finally {
 		globalThis.fetch = origFetch;
-		globalThis.MutationObserver = origObserver;
 	}
 	check("apply() 在最小 DOM 桩上不抛", applyError === null, applyError === null ? "" : String(applyError));
+	check(
+		"apply() 确实注册了 main 与 sidebar.panellist 两个 slot",
+		slotCalls.includes("register:main") && slotCalls.includes("register:sidebar.panellist"),
+		slotCalls.join(", ")
+	);
 }
 
 // 5) 常驻件不能被塞回面板里
@@ -365,7 +368,7 @@ check("头部标题类名与 CSS 一致（lkb_headTitle，不是 lkb-headTitle�
 	check("apply 里挂载了预警看护", /\bmountAlertWatcher\s*\(/.test(applyFn), applyFn.split("\n").filter((l) => /mount|dispose/.test(l)).join(" | "));
 	check("apply 里启动了交易日历时钟", /\bstartSessionClock\s*\(/.test(applyFn));
 	check("apply 里把预警宿主挂进了 disposers", /alertWatcher\.dispose\s*\(/.test(applyFn));
-	check("面板不再自己渲染 AlertWatcher", !/function PortfolioPanel[\s\S]*?h\(AlertWatcher\b/.test(src), (src.match(/h\(AlertWatcher\b/g) ?? []).length + " 处渲染（应仅常驻宿主 1 处）");
+	check("面板不再自己渲染 AlertWatcher", !/function PortfolioPage[\s\S]*?h\(AlertWatcher\b/.test(src), (src.match(/h\(AlertWatcher\b/g) ?? []).length + " 处渲染（应仅常驻宿主 1 处）");
 	check("AlertWatcher 只在常驻宿主里渲染一次", (src.match(/h\(AlertWatcher\b/g) ?? []).length === 1);
 	// 预警宿主自带 toast 栈：面板没开时也得弹得出来
 	check("产物的 toast 走订阅式广播（core 的 pushToast/onToast）", src.includes("toastListeners") && src.includes("function pushToast("));

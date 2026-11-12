@@ -190,25 +190,22 @@ console.log("== ③ 快讯自动刷新不丢页 ==");
 	assert.match(clientSrc.news, /if \(seq !== newsLoadSeq\.current\) return; \/\/ 已被更新的请求取代/, "loadThrough 要有 stale 守卫");
 }
 
-console.log("== ④ ESC / 遮罩关的是置顶窗口 ==");
+console.log("== ④ ESC 的作用层级（先退钻取子页，再收右栏） ==");
 {
-	const topWindow = extractFunction(bundle, "topWindow");
-	// 用户依次打开 A、B，然后点回 A 把它抬到最前 → 数组仍是 [A,B]，末位是 B
-	const wins = [
-		{ id: "a", z: 5 },
-		{ id: "b", z: 3 },
-	];
-	assert.equal(topWindow(wins).id, "a", "置顶 = z 最大，而不是数组末位");
-	assert.equal(topWindow([]), null, "空列表返回 null");
-	assert.equal(topWindow([{ id: "x" }]).id, "x", "缺 z 时按 0 处理且不崩");
-	// 取等号保证"最后被抬起的那个"胜出（z 不会重复，但并列时行为要确定）
-	assert.equal(topWindow([{ id: "p", z: 7 }, { id: "q", z: 7 }]).id, "q", "z 并列时取后者");
+	// 弹窗时代的「ESC 关置顶窗口」随窗口系统退役；页面化的层级是
+	// 钻取子页 → 右栏详情 → 无动作，判定集中在纯函数 escTarget 里。
+	const escTarget = extractFunction(bundle, "escTarget");
+	assert.equal(escTarget({ drill: true, selected: true }), "drill", "有钻取子页时 ESC 先退子页");
+	assert.equal(escTarget({ drill: false, selected: true }), "selection", "没有子页时 ESC 收右栏");
+	assert.equal(escTarget({ drill: false, selected: false }), null, "什么都没有时 ESC 不动作（页面不像弹窗可关）");
 
-	// 两处入口都必须用 topWindow，不得再关数组末位
-	const uses = clientSrc.panel.match(/topWindow\(/g) ?? [];
-	assert.ok(uses.length >= 3, `ESC 与遮罩都要走 topWindow（含定义，实测 ${uses.length} 处）`);
-	assert.doesNotMatch(clientSrc.panel, /winsRef\.current\.length > 0\) setWins\(\(prev\) => prev\.slice\(0, -1\)\)/, "ESC 不得再关数组末位");
-	assert.doesNotMatch(clientSrc.panel, /const closeTopWin = \(\) => setWins\(\(prev\) => prev\.slice\(0, -1\)\)/, "遮罩不得再关数组末位");
+	// 接线守卫：ESC 处理必须走 escTarget，且不在输入框里劫持
+	const uses = clientSrc.panel.match(/escTarget\(/g) ?? [];
+	assert.ok(uses.length >= 2, `ESC 处理要走 escTarget（含定义，实测 ${uses.length} 处）`);
+	assert.match(clientSrc.panel, /t\.tagName === "INPUT" \|\| t\.tagName === "TEXTAREA" \|\| t\.isContentEditable/, "输入框里的 ESC 不得被劫持");
+	// 窗口栈时代"关错窗"的整套写法不得回潮（现在根本没有窗口数组）
+	assert.doesNotMatch(clientSrc.panel, /setWins\(/, "窗口栈（setWins）不得复活");
+	assert.doesNotMatch(clientSrc.panel, /closeTopWin/, "关置顶窗口的旧语义不得复活");
 }
 
 console.log("== ⑤ 用户发起的写操作失败要说出来 ==");
@@ -218,7 +215,7 @@ console.log("== ⑤ 用户发起的写操作失败要说出来 ==");
 	// 具体接线：这些都是用户主动点击的
 	const wired = [
 		["star.js 加/移自选", clientSrc.star, /notifyFailure\(on \? "移出自选" : "加入自选"\)/],
-		["详情窗 加/移自选", clientSrc.detail, /notifyFailure\(watching \? "移出自选" : "加入自选"\)/],
+		["详情 加/移自选", clientSrc.detail, /notifyFailure\(watching \? "移出自选" : "加入自选"\)/],
 		["自选 修改分组", clientSrc.watchlist, /notifyFailure\("修改分组"\)/],
 		["自选 删除预警", clientSrc.watchlist, /notifyFailure\("删除预警"\)/],
 	];

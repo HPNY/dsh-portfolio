@@ -1,8 +1,10 @@
-// 持仓看板 dsh-portfolio — 客户端 bundle 源码：基金详情浮窗
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：基金详情内容
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 //
-// 与自选页的 StockDetailWindow 同一套窗口 chrome（.lkb-win 可拖拽、层级递增、✕ 关闭），
-// 内容按成熟基金详情页排布：净值 / 阶段涨幅 / 净值走势（可切区间）/ 我的持仓。
+// 弹窗时代的 FundDetailWindow 已随「弹窗 → 页面」迁移退役（窗口壳 .lkb-win 拖拽 /
+// 层级 / ✕ 关闭全部删除），与 StockDetailContent 同一套变体约定：
+//   - variant="rail"：净值 / 净值走势（可切区间）/ 我的持仓；
+//   - variant="page"：完整版再加阶段涨幅与最新披露重仓股。
 // 阶段涨幅由 Host 算好（/api/leekbox/otc-fund/history），本文件只渲染。
 import { h, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, fmt, fmtAmount, fmtPct, fmtSign, lkbConfirm, notifyFailure, trend } from "./core.js";
@@ -108,8 +110,8 @@ function NavChart({ points, costNav, height = 220 }) {
 	);
 }
 
-/** 基金详情浮窗：与 StockDetailWindow 同一套窗口骨架（可拖拽 / 层级 / 关闭）。 */
-export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged }) {
+/** 基金详情**内容**（右栏紧凑版 / 钻取子页完整版共用），见文件头的变体约定。 */
+export function FundDetailContent({ fund, onChanged, onDrill, variant = "page" }) {
 	const code = String(fund?.code ?? "");
 	const [data, setData] = useState(null);
 	const [positions, setPositions] = useState([]);
@@ -117,19 +119,6 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 	const [error, setError] = useState("");
 	const [range, setRange] = useState("m6");
 	const [tracked, setTracked] = useState(null);
-	const cardRef = useRef(null);
-	const [pos, setPos] = useState({ x, y });
-	// 挂载后按**实际尺寸**夹回视口内：详情页多长取决于数据多少，窗口可能比估算的
-	// 更高更宽，不夹就会压出屏幕、每次都得手动拖。只在首次挂载跑一次。
-	useEffect(() => {
-		const el = cardRef.current;
-		if (!el) return;
-		const r = el.getBoundingClientRect();
-		const maxX = Math.max(8, window.innerWidth - r.width - 8);
-		const maxY = Math.max(8, window.innerHeight - r.height - 8);
-		setPos((p) => ({ x: Math.min(Math.max(8, p.x), maxX), y: Math.min(Math.max(8, p.y), maxY) }));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
 
 	useEffect(() => {
 		let alive = true;
@@ -155,33 +144,6 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 		if (data?.tracked !== void 0) setTracked(data.tracked === true);
 	}, [data]);
 
-	const onHeadDown = (e) => {
-		if (e.button !== 0) return;
-		if (e.target.closest("button") !== null) return;
-		e.preventDefault();
-		const rect = cardRef.current !== null ? cardRef.current.getBoundingClientRect() : null;
-		if (rect === null) return;
-		const startX = e.clientX;
-		const startY = e.clientY;
-		const baseLeft = rect.left;
-		const baseTop = rect.top;
-		const clampX = (v) => Math.max(8 - rect.width + 80, Math.min(v, window.innerWidth - 80));
-		const clampY = (v) => Math.max(8, Math.min(v, window.innerHeight - 40));
-		const onMove = (ev) => setPos({ x: clampX(baseLeft + ev.clientX - startX), y: clampY(baseTop + ev.clientY - startY) });
-		const onUp = () => {
-			window.removeEventListener("pointermove", onMove);
-			window.removeEventListener("pointerup", onUp);
-			document.body.style.userSelect = "";
-		};
-		document.body.style.userSelect = "none";
-		window.addEventListener("pointermove", onMove);
-		window.addEventListener("pointerup", onUp);
-	};
-	const centerWindow = () => {
-		const rect = cardRef.current !== null ? cardRef.current.getBoundingClientRect() : null;
-		if (rect === null) return;
-		setPos({ x: Math.max(8, Math.round((window.innerWidth - rect.width) / 2)), y: Math.max(8, Math.round((window.innerHeight - rect.height) / 2)) });
-	};
 	const item = (label, value, cls) =>
 		h("div", { className: "lkb-qItem" }, h("div", { className: "lkb-qLabel" }, label), h("div", { className: "lkb-qValue " + (cls ?? "") }, value));
 
@@ -223,39 +185,31 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 			.catch(notifyFailure("加入基金"));
 	};
 
+	// 操作行（原窗头按钮的去处）：加入/移出基金 + 右栏专属的「打开完整详情」。
+	const actionsRow = h(
+		"div",
+		{ className: "lkb-detailActions" },
+		h(
+			"button",
+			{
+				className: "lkb-chip",
+				"data-active": tracked === true ? "true" : "false",
+				disabled: tracked === null,
+				title: tracked === true ? "从基金持仓中移出" : "加入基金持仓（份额与成本可随后补）",
+				onClick: toggleTrack,
+			},
+			tracked === true ? "移出基金" : "加入基金"
+		),
+		onDrill ? h("button", { className: "lkb-btnPrimary", onClick: onDrill }, "⤢ 打开完整详情") : null
+	);
 	return h(
 		"div",
-		{ className: "lkb-win", ref: cardRef, style: { left: pos.x, top: pos.y, zIndex: z }, onPointerDown: onFocus },
-		h(
-			"div",
-			{ className: "lkb_head", title: "拖动移动窗口 · 双击居中", onPointerDown: onHeadDown, onDoubleClick: centerWindow },
-			h(
-				"span",
-				{ className: "lkb_headTitle" },
-				h("span", { className: "lkb-logo" }, data?.name || fund?.name || code),
-				h("span", { className: "lkb-code" }, code)
-			),
-			h(
-				"div",
-				{ className: "lkb_headRight" },
-				h(
-					"button",
-					{
-						className: "lkb-chip",
-						"data-active": tracked === true ? "true" : "false",
-						disabled: tracked === null,
-						title: tracked === true ? "从基金持仓中移出" : "加入基金持仓（份额与成本可随后补）",
-						onClick: toggleTrack,
-					},
-					tracked === true ? "移出基金" : "加入基金"
-				),
-				h("button", { className: "lkb_close", title: "关闭", onClick: onClose }, "✕")
-			)
-		),
-		error === "" ? null : h("div", { className: "lkb-error" }, error),
+		{ className: variant === "rail" ? "lkb-detail lkb-detailRail" : "lkb-detail" },
 		h(
 			"div",
 			{ className: "lkb-fundBody" },
+			error === "" ? null : h("div", { className: "lkb-error" }, error),
+			variant === "rail" ? null : actionsRow,
 			// 净值区：与股票详情顶部同一套 .lkb-detailQuote 网格（边框圆角卡片 + 小标签/大数值）
 			h(
 				"div",
@@ -265,8 +219,8 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 				item("披露状态", estimate ? "估值" : "已披露"),
 				item("净值日期", estimate ? data?.estimateTime || "估值中" : data?.latestDate || "—")
 			),
-			// 阶段涨幅
-			h(
+			// 阶段涨幅（完整版专属：右栏留给「打开完整详情」）
+			variant === "rail" ? null : h(
 				"div",
 				null,
 				h("div", { className: "lkb-secTitle" }, "阶段涨幅"),
@@ -319,8 +273,8 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 					item("盈亏比例", fmtPct(returnPct), trend(returnPct))
 				)
 			),
-			// 最新披露的前十大重仓股：占净值比例 + 实时涨跌（港股无行情则显示"—"）
-			positions.length === 0 && posError === ""
+			// 最新披露的前十大重仓股（完整版专属）：占净值比例 + 实时涨跌（港股无行情则显示"—"）
+			variant === "rail" ? null : positions.length === 0 && posError === ""
 				? null
 				: h(
 						"div",
@@ -355,7 +309,8 @@ export function FundDetailWindow({ fund, x, y, z, onFocus, onClose, onChanged })
 										);
 									})
 								)
-					)
+					),
+			variant === "rail" ? actionsRow : null
 		)
 	);
 }

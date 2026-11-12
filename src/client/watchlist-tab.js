@@ -18,8 +18,9 @@ function downloadBlob(name, blob) {
 
 /** 自选股持仓单元格:点击进入内联编辑,Enter/失焦保存,Esc 取消。
  *  保存走 POST /watchlist/add 的更新路径(服务端校验 qty/cost);
- *  清空输入 = 清除该字段(qty: null / cost: null)。 */
-function PositionCell({ value, placeholder, onSave }) {
+ *  清空输入 = 清除该字段(qty: null / cost: null)。
+ *  导出供个股详情右栏的持仓卡复用（同一套内联编辑交互）。 */
+export function PositionCell({ value, placeholder, onSave }) {
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState("");
 	const start = (e) => {
@@ -70,7 +71,8 @@ function PositionCell({ value, placeholder, onSave }) {
 /** 服务端 ALERT_KINDS 的客户端镜像(见 lib/index.js)。 */
 const ALERT_KIND_LABELS = { above: "价格涨到", below: "价格跌破", pctUp: "涨幅达到", pctDown: "跌幅达到" };
 
-function alertLabel(a) {
+/** 预警条件的中文摘要；导出供个股详情右栏的持仓卡复用。 */
+export function alertLabel(a) {
 	if (a.kind === "above") return `价格涨到 ${fmt(a.price)}`;
 	if (a.kind === "below") return `价格跌破 ${fmt(a.price)}`;
 	if (a.kind === "pctUp") return `涨幅达到 ${fmt(a.pct)}%`;
@@ -121,8 +123,9 @@ function beep() {
 }
 
 /** 内联预警表单:类型 + 数值,提交到 POST /alerts/add;成功后广播
- *  alerts-changed 让预警卡片与看护器立即刷新。错误在表单内显示。 */
-function AlertForm({ code, name, onDone }) {
+ *  alerts-changed 让预警卡片与看护器立即刷新。错误在表单内显示。
+ *  导出供个股详情的操作行复用（🔔 价格预警）。 */
+export function AlertForm({ code, name, onDone }) {
 	const [kind, setKind] = useState("above");
 	const [val, setVal] = useState("");
 	const [err, setErr] = useState("");

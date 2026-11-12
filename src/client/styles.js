@@ -2,31 +2,36 @@
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 
 const CSS = `
-/* 侧边栏条目 —— **降级兜底**样式（找不到原生行可复刻、或旧版 GUI 时自建的入口，
-   见 sidebar.js 的 cloneNativeEntry / placeEntry）。首选路径直接复刻原生行 DOM，
-   几何由借来的原生 class 决定，根本不经过这里的数值。
+/* ---- 页面骨架（「弹窗 → 页面」迁移后）：页头 / 页签 / 主从分栏 / 详情 / 页脚 ----
    注意：这段是模板字符串，注释里**不能出现反引号**，否则会提前截断字符串。
-   下面这些数值不是猜的，是从 app.asar 里 DSH 自己的 .panelRow 抄来的（2026-11 版）：
-     min-height:32px  padding:5px 9px  gap:6px  line-height:22px
-     border-radius:var(--dsw-radius-md)  color:var(--dsw-alias-label-primary)  font:inherit
-   行高曾经是 36px——那是旧版 DSH 的值，跟着原生改过一次之后就别再"对齐旧版"了。
-   连带列表间距也是原生的（panelList 为 gap:2px），所以纵向节奏自动一致。 */
-/* 降级路径插在 sidebar root 下、nav 的**外面**（见 sidebar.js 的 placeEntry），
-   拿不到那个 nav 的 gap:2px。这里用 margin-bottom:2px 把这一份间距补上，行距就与原生一致。
-   折叠态由下面的规则把 margin 归零。 */
-.lkb_entry{box-sizing:border-box;border-radius:var(--dsw-radius-md);min-height:32px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:none;align-items:center;gap:6px;margin:0 2px 2px;padding:5px 9px;line-height:22px;display:flex}
-.lkb_entry:hover{background:var(--dsw-alias-interactive-bg-hover)}
-/* 图标槽位：与原生 .wtg9ga_panelGlyph 完全一致 —— 只做 flex 居中、不定宽高，
-   尺寸由其中 SVG 自己决定。原生图标实际渲染在 16x16，24 的 viewBox 等比缩到 16px。 */
-.lkb_entryIcon{flex:none;justify-content:center;align-items:center;display:inline-flex}
-.lkb_entryIcon svg{display:block;width:16px;height:16px}
-.lkb_entryLabel{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}
-[data-dsh-frame][data-sidebar-collapsed] .lkb_entry{border-radius:var(--dsw-radius-md);justify-content:center;width:36px;height:36px;margin:0;padding:0}
-[data-dsh-frame][data-sidebar-collapsed] .lkb_entryLabel{display:none}
-.lkb_overlay{background:var(--dsw-alias-bg-mask-2,#080a1073);z-index:9999;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;display:block;position:fixed;inset:0}
-.lkb_card{background:var(--dsw-alias-bg-overlay,#fdfdfd);width:min(980px,94vw);max-width:min(980px,calc(100vw - 16px));height:min(640px,88vh);max-height:88vh;color:var(--dsw-alias-label-primary,#1c1e26);border-radius:14px;flex-direction:column;display:flex;overflow:hidden;box-shadow:0 20px 70px #00000059;position:fixed;z-index:10000;margin:0}
-.lkb_head{background:var(--dsw-alias-bg-base,#fff);align-items:center;gap:12px;padding:12px 18px;display:flex;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed);cursor:grab;touch-action:none;user-select:none}
-.lkb_head:active{cursor:grabbing}
+   弹窗时代的 .lkb_overlay / .lkb_card / .lkb-win 与侧边栏 DOM 入口（.lkb_entry*）
+   已随迁移退役：面板由宿主经 main slot 挂载成页面，详情走右栏联动（方向 C）
+   与钻取子页（方向 B）。表格样式作用域从 .lkb_card 平移到 .lkb-page。 */
+.lkb-page{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+.lkb-split{flex:1;min-height:0;display:flex;align-items:stretch}
+.lkb-split .lkb_body{flex:1;min-width:0}
+.lkb-rail{flex:none;width:clamp(320px,36%,440px);min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--dsw-alias-border-l1,#e8e9ed);background:var(--dsw-alias-bg-base,#fff)}
+.lkb-railHead{flex:none;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed)}
+.lkb-railTitle{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lkb-railHead .lkb_close{margin-left:auto}
+.lkb-sub{flex:1;min-height:0;display:flex;flex-direction:column}
+.lkb-crumb{flex:none;display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed);background:var(--dsw-alias-bg-base,#fff)}
+.lkb-subTitle{font-size:16px;font-weight:700}
+.lkb-backBtn{cursor:pointer;background:0 0;border:none;color:#3b5bdb;font-size:13px;font-weight:600;padding:5px 10px;border-radius:8px}
+.lkb-backBtn:hover{background:var(--dsw-alias-interactive-bg-hover,#f2f3f5)}
+/* 详情内容容器（右栏紧凑版 / 钻取子页完整版共用）：自身是 flex 列，
+   内容超长由 .lkb_body / .lkb-fundBody 的 overflow 滚动（min-height:0 是关键）。 */
+.lkb-detail{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.lkb-detailActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 2px}
+.lkb-posCard{margin-top:12px;background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:12px;padding:10px 14px}
+.lkb-posGrid{display:flex;flex-direction:column;gap:6px}
+.lkb-posItem{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dsw-alias-label-secondary,#5f6672)}
+.lkb-posLabel{color:var(--dsw-alias-label-tertiary,#a2a7b3)}
+.lkb-posEmpty{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px}
+/* 侧栏面板行图标（sidebar.panellist 注册组件）：尺寸由宿主的 size 参数定（16/18）。 */
+.lkb_panelIcon{display:inline-flex;align-items:center;justify-content:center;flex:none}
+.lkb_panelIcon svg{width:100%;height:100%;display:block}
+.lkb_head{background:var(--dsw-alias-bg-base,#fff);align-items:center;gap:12px;padding:12px 18px;display:flex;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed)}
 .lkb_headTitle{margin:0;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
 .lkb_headTitle .lkb-logo{font-size:18px;display:inline-flex;align-items:center}
 .lkb_headTitle .lkb-logo svg{display:block;width:18px;height:18px}
@@ -70,12 +75,12 @@ const CSS = `
 .lkb-banner .lkb-code{font-weight:500}
 body[data-ds-dark-theme] .lkb-banner{background:#6378dc26;border-color:#6378dc55;color:#a5b4fc}
 .lkb_foot{background:var(--dsw-alias-bg-base,#fff);border-top:1px solid var(--dsw-alias-border-l1,#e8e9ed);padding:8px 18px;color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px;display:flex;justify-content:space-between;gap:8px}
-.lkb_card table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--dsw-alias-bg-base,#fff);border-radius:10px;overflow:hidden}
-.lkb_card th{color:var(--dsw-alias-label-tertiary,#a2a7b3);text-align:right;font-weight:600;font-size:11px;letter-spacing:.05em;padding:8px 10px;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed);white-space:nowrap;position:sticky;top:0;background:var(--dsw-alias-bg-base,#fff)}
-.lkb_card th:first-child,.lkb_card td:first-child{text-align:left}
-.lkb_card td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--dsw-alias-border-l1,#f2f3f5);white-space:nowrap;font-variant-numeric:tabular-nums}
-.lkb_card tbody tr{cursor:pointer;transition:background .12s,box-shadow .12s;animation:lkb-rowIn .22s ease-out backwards}
-.lkb_card tbody tr:hover{background:#f8f9fd;box-shadow:inset 2px 0 0 #4c6ef5}
+.lkb-page table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--dsw-alias-bg-base,#fff);border-radius:10px;overflow:hidden}
+.lkb-page th{color:var(--dsw-alias-label-tertiary,#a2a7b3);text-align:right;font-weight:600;font-size:11px;letter-spacing:.05em;padding:8px 10px;border-bottom:1px solid var(--dsw-alias-border-l1,#e8e9ed);white-space:nowrap;position:sticky;top:0;background:var(--dsw-alias-bg-base,#fff)}
+.lkb-page th:first-child,.lkb-page td:first-child{text-align:left}
+.lkb-page td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--dsw-alias-border-l1,#f2f3f5);white-space:nowrap;font-variant-numeric:tabular-nums}
+.lkb-page tbody tr{cursor:pointer;transition:background .12s,box-shadow .12s;animation:lkb-rowIn .22s ease-out backwards}
+.lkb-page tbody tr:hover{background:#f8f9fd;box-shadow:inset 2px 0 0 #4c6ef5}
 @keyframes lkb-rowIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 .lkb-name{font-weight:600;color:var(--dsw-alias-label-primary)}
 .lkb-code{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px;margin-left:6px}
@@ -215,13 +220,13 @@ body[data-ds-dark-theme] .lkb-srBadge.t-lof{background:#6b5fa840;color:#c4b5fd}
 .lkb-progress{height:5px;background:var(--dsw-alias-bg-layer-1,#eef0f3);border-radius:99px;overflow:hidden;margin-top:6px}
 .lkb-progressBar{height:100%;background:#4c6ef5;transition:width .3s}
 .lkb-score{display:inline-block;min-width:36px;text-align:center;font-weight:700;font-size:13px;padding:2px 6px;border-radius:6px;background:#eef2ff;color:#4353a3;font-variant-numeric:tabular-nums}
-body[data-ds-dark-theme] .lkb_card,body[data-ds-dark-theme] .lkb_head,body[data-ds-dark-theme] .lkb_tabBar,body[data-ds-dark-theme] .lkb_foot{background:#2c2c2e}
+body[data-ds-dark-theme] .lkb-page,body[data-ds-dark-theme] .lkb_head,body[data-ds-dark-theme] .lkb_tabBar,body[data-ds-dark-theme] .lkb_foot{background:#2c2c2e}
 body[data-ds-dark-theme] .lkb_body{background:#1e1e1e}
-body[data-ds-dark-theme] .lkb_card table{background:#3a3a3c;border-color:#ffffff14}
-body[data-ds-dark-theme] .lkb_card th{background:#3a3a3c;border-color:#ffffff0f}
-body[data-ds-dark-theme] .lkb_card td{border-color:#ffffff0d}
-body[data-ds-dark-theme] .lkb_card tbody tr:hover,body[data-ds-dark-theme] .lkb_close:hover,body[data-ds-dark-theme] .lkb-btnGhost:hover{background:#ffffff12}
-body[data-ds-dark-theme] .lkb_card tbody tr:hover{box-shadow:inset 2px 0 0 #6378dc}
+body[data-ds-dark-theme] .lkb-page table{background:#3a3a3c;border-color:#ffffff14}
+body[data-ds-dark-theme] .lkb-page th{background:#3a3a3c;border-color:#ffffff0f}
+body[data-ds-dark-theme] .lkb-page td{border-color:#ffffff0d}
+body[data-ds-dark-theme] .lkb-page tbody tr:hover,body[data-ds-dark-theme] .lkb_close:hover,body[data-ds-dark-theme] .lkb-btnGhost:hover{background:#ffffff12}
+body[data-ds-dark-theme] .lkb-page tbody tr:hover{box-shadow:inset 2px 0 0 #6378dc}
 body[data-ds-dark-theme] .lkb-chip{background:#2c2c2e;border-color:#ffffff14;color:#c0c4cc}
 body[data-ds-dark-theme] .lkb-chip:hover{border-color:#6378dc66;color:#dbe4ff}
 body[data-ds-dark-theme] .lkb_tabTrack{background:#1b1b1d;border-color:#ffffff14;box-shadow:inset 0 1px 2px #00000080}
@@ -243,7 +248,6 @@ body[data-ds-dark-theme] .lkb-newsStock:hover .lkb-newsStockCode{background:#637
 body[data-ds-dark-theme] .lkb-newsStock:hover .lkb-newsStockArrow{color:#a5b4fc}
 body[data-ds-dark-theme] .lkb-score{background:#6378dc38;color:#a5b4fc;border-color:#6378dc66}
 body[data-ds-dark-theme] .lkb-progressBar{background:#6378dc}
-.lkb-win{position:fixed;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);border-radius:14px;width:min(760px,94vw);max-height:min(88vh,760px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px #00000066;animation:lkb-pop .14s ease-out;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
 @keyframes lkb-pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 .lkb-mktTag{flex:none;font-size:10px;color:var(--dsw-alias-label-secondary,#8a8f9c);background:var(--dsw-alias-bg-layer-1,#f2f3f5);padding:2px 8px;border-radius:99px;font-weight:500}
 .lkb-hero{display:flex;gap:18px;align-items:stretch;flex-wrap:wrap;background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:12px;padding:12px 16px;margin-bottom:12px}
@@ -304,8 +308,8 @@ body[data-ds-dark-theme] .lkb-alertCond{color:#a5b4fc}
 .lkb-toasts{position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;max-width:min(420px,86vw)}
 .lkb-toast{cursor:pointer;background:linear-gradient(var(--dsw-alias-bg-base,#fff),var(--dsw-alias-bg-base,#fff)),#fff;border:1px solid #f0b37e;border-left:4px solid #f08c00;border-radius:10px;box-shadow:0 12px 40px #00000040;padding:10px 14px;font-size:12.5px;line-height:1.5;color:var(--dsw-alias-label-primary,#1c1e26);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-variant-numeric:tabular-nums;animation:lkb-rowIn .18s ease-out}
 body[data-ds-dark-theme] .lkb-toast{background:linear-gradient(#3a3a3c,#3a3a3c),#3a3a3c;border-color:#f08c0066}
-body[data-ds-dark-theme] .lkb-win{background:#2c2c2e;box-shadow:0 24px 80px #000000cc}
-body[data-ds-dark-theme] .lkb-win .lkb_head{background:#2c2c2e}
+body[data-ds-dark-theme] .lkb-rail,body[data-ds-dark-theme] .lkb-crumb,body[data-ds-dark-theme] .lkb-railHead{background:#2c2c2e;border-color:#ffffff14}
+body[data-ds-dark-theme] .lkb-posCard{background:#3a3a3c;border-color:#ffffff14}
 body[data-ds-dark-theme] .lkb-hero{background:#3a3a3c;border-color:#ffffff14}
 body[data-ds-dark-theme] .lkb-mktTag{background:#3a3a3c;color:#a2a7b3}
 .lkb-srcBadge{flex:none;font-size:10px;padding:1px 8px;border-radius:99px;background:#eef2ff;color:#4353a3}
@@ -466,17 +470,16 @@ body[data-ds-dark-theme] .lkb-anHit:hover{border-color:#6378dc66}
 body[data-ds-dark-theme] .lkb_settingsMask{background:rgba(0,0,0,.5)}
 body[data-ds-dark-theme] .lkb_settingsBox{background:#3a3a3c;border-color:#ffffff14}
 /* ---- 场外基金页（盈亏百分比 / 浮盈 / 净值曲线） ----------------------------
- * 列表直接用 <table>，表格骨架复用 .lkb_card table/th/td；这里只写基金特有的徽标、净值字号、
+ * 列表直接用 <table>，表格骨架复用 .lkb-page table/th/td；这里只写基金特有的徽标、净值字号、
  * 编辑区与净值曲线。盈亏颜色统一走 .lkb-up(红) / .lkb-down(绿)，即 A 股口径"涨红跌绿"。 */
 /* 基金页的基准字号。这一页是列表页，字号必须和自选页的表格对齐
-   （.lkb_card table 是 12.5px）。此前这里不给基准，未显式设字号的文字
+   （.lkb-page table 是 12.5px）。此前这里不给基准，未显式设字号的文字
    （基金名等）就继承到浏览器默认 16px，整页看着比别的页大一圈。 */
 .lkb_fundPage{font-size:12.5px}
 .lkb_fundDim{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11.5px;font-variant-numeric:tabular-nums}
-/* ---- 基金详情浮窗（点行打开，与自选的股票详情窗同一套 chrome） ---- */
-/* 显式给白色底：.lkb-win 的背景是 --dsw-alias-bg-overlay（当前主题下是浅灰），
-   股票详情里它被白色卡片完全盖住、看不出来；基金页卡片之间有缝隙会露灰底，
-   看着和股票详情不一致。这里按股票那一侧统一成 bg-base 白。 */
+/* ---- 基金详情内容（右栏紧凑版 / 钻取子页完整版，与股票详情同一套骨架） ---- */
+/* 显式给白色底：页面底是 --dsw-alias-bg-overlay（当前主题下是浅灰），
+   卡片之间有缝隙会露灰底，看着和股票详情不一致。这里按股票那一侧统一成 bg-base 白。 */
 .lkb-fundBody{padding:14px 16px;display:flex;flex-direction:column;gap:14px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;background:var(--dsw-alias-bg-base,#fff)}
 /* 区间切换 chips：挂在 .lkb-chartTitle 的右侧（与股票详情 K 线标题右侧的周期按钮同位） */
 .lkb-fundRanges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}

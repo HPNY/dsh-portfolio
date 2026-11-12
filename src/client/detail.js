@@ -1,7 +1,8 @@
-// 持仓看板 dsh-portfolio — 客户端 bundle 源码：个股详情弹窗（K线/分时/资金流/F10）
+// 持仓看板 dsh-portfolio — 客户端 bundle 源码：个股详情内容（K线/分时/资金流/F10 + 右栏持仓卡）
 // 由 build.mjs 打包进 lib/client.js（npm run build）；不要手改产物。
 import { h, useEffect, useRef, useState } from "./react.js";
 import { API, api, cnMarket, describeError, fmt, fmtAmount, fmtPct, fmtSign, fmtTime, fmtVol, fmtYi, notifyFailure, trend, useTradingInterval } from "./core.js";
+import { AlertForm, alertLabel, PositionCell } from "./watchlist-tab.js";
 
 const UP_COLOR = "#e03131";
 const DOWN_COLOR = "#0f9d6e";
@@ -415,7 +416,22 @@ function FflowChart({ rows }) {
 		hover === null || hi < 0 ? h("div", { className: "lkb-ffval" }, "悬停柱子查看当日主力净流入") : h("div", { className: "lkb-ffval" }, `${String(rows[hi].date ?? "").slice(5)} 主力净流入 `, h("b", { className: trend(vals[hi]) }, fmtYi(vals[hi])))
 	);
 }
-export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClose, onWatched }) {
+/** 周期档位：完整 13 档顺序与雪球一致；右栏紧凑版收敛 6 档（分时/日K/周K/月K/30分/5分）。 */
+const PERIODS_ALL = ["today", "m5day", "day", "week", "month", "quarter", "year", "m120", "m60", "m30", "m15", "m5", "m1"];
+const PERIODS_RAIL = ["today", "day", "week", "month", "m30", "m5"];
+const PERIOD_LABELS = { today: "分时", m5day: "五日", day: "日K", week: "周K", month: "月K", quarter: "季K", year: "年K", m120: "120分", m60: "60分", m30: "30分", m15: "15分", m5: "5分", m1: "1分" };
+
+/** 个股详情**内容**（右栏紧凑版 / 钻取子页完整版共用）。
+ *
+ * 弹窗时代的 StockDetailWindow 已随「弹窗 → 页面」迁移退役：窗口壳（.lkb-win、
+ * 拖拽、双击居中、✕ 关闭、z 序）全部删除，这里只保留数据与内容。
+ *   - variant="rail"：右栏紧凑版 —— 隐藏资金流/F10 大区（那是「打开完整详情」的
+ *     内容），周期行收敛为 6 档（与雪球右栏同款），附加持仓卡；
+ *   - variant="page"：钻取子页完整版 —— 13 档周期 + 资金流 + F10，什么都不删。
+ * 操作行（加自选 / 价格预警 / ⤢ 打开完整详情）由本组件渲染：自选开关的
+ * watching 是它的内部状态，窗口壳时代挂在窗头，页面化后就地安家。
+ */
+export function StockDetailContent({ code, name, isIndex, onWatched, onDrill, variant = "page" }) {
 	const [q, setQ] = useState(null);
 	const [klines, setKlines] = useState([]);
 	const [minute, setMinute] = useState(null);
@@ -430,30 +446,39 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 	const [extraTick, setExtraTick] = useState(0);
 	const [error, setError] = useState("");
 	const [kError, setKError] = useState("");
-	const cardRef = useRef(null);
-	const [pos, setPos] = useState({ x, y });
-	// 挂载后按**实际尺寸**夹回视口内：详情页多长取决于数据多少，窗口可能比估算的
-	// 更高更宽，不夹就会压出屏幕、每次都得手动拖。只在首次挂载跑一次，
-	// 不影响用户之后的拖动与双击居中。
-	useEffect(() => {
-		const el = cardRef.current;
-		if (!el) return;
-		const r = el.getBoundingClientRect();
-		const maxX = Math.max(8, window.innerWidth - r.width - 8);
-		const maxY = Math.max(8, window.innerHeight - r.height - 8);
-		setPos((p) => ({ x: Math.min(Math.max(8, p.x), maxX), y: Math.min(Math.max(8, p.y), maxY) }));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	const [alertOpen, setAlertOpen] = useState(false);
+	// 右栏持仓卡的两条数据：自选持仓行（股数/成本）与该股的价格预警。
+	const [wlEntry, setWlEntry] = useState(null);
+	const [alerts, setAlerts] = useState([]);
 	useEffect(() => {
 		let alive = true;
 		setError("");
 		api(API.quote + `?codes=${code}`).then((d) => alive && setQ((d.quotes ?? [])[0] ?? null)).catch((e) => alive && setError(describeError(e)));
-		api(API.watchlist).then((d) => alive && setWatching((d.watchlist ?? []).some((e) => e.code === code))).catch(() => {
-		});
+		api(API.watchlist).then((d) => {
+			if (!alive) return;
+			const entry = (d.watchlist ?? []).find((e) => e.code === code) ?? null;
+			setWatching(entry !== null);
+			setWlEntry(entry);
+		}).catch(() => {});
 		return () => {
 			alive = false;
 		};
 	}, [code]);
+	// 右栏持仓卡显示该股的价格预警条件；预警增删经 leekbox:alerts-changed 广播即时刷新。
+	useEffect(() => {
+		if (variant !== "rail") return;
+		let alive = true;
+		const load = () =>
+			api(API.alerts)
+				.then((d) => alive && setAlerts((d.alerts ?? []).filter((a) => a.code === code)))
+				.catch(() => {});
+		load();
+		window.addEventListener("leekbox:alerts-changed", load);
+		return () => {
+			alive = false;
+			window.removeEventListener("leekbox:alerts-changed", load);
+		};
+	}, [code, variant]);
 	useEffect(() => {
 		let alive = true;
 		setKError("");
@@ -487,6 +512,8 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 		};
 	}, [code, period]);
 	useEffect(() => {
+		// 右栏紧凑版不渲染资金流/F10（那是「打开完整详情」的内容），不发这两组请求。
+		if (variant === "rail") return;
 		let alive = true;
 		setFflowErr("");
 		api(API.fflow + `?code=${code}&count=30`).then((d) => {
@@ -502,6 +529,8 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 		};
 	}, [code, extraTick]);
 	useEffect(() => {
+		// 同上：F10 只在完整版拉。
+		if (variant === "rail") return;
 		let alive = true;
 		setF10Err("");
 		api(API.f10 + `?code=${code}`).then((d) => {
@@ -544,56 +573,62 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 			onWatched?.();
 		}).catch(notifyFailure(watching ? "移出自选" : "加入自选"));
 	};
-	const onHeadDown = (e) => {
-		if (e.button !== 0) return;
-		if (e.target.closest("button") !== null) return;
-		e.preventDefault();
-		const rect = cardRef.current !== null ? cardRef.current.getBoundingClientRect() : null;
-		if (rect === null) return;
-		const startX = e.clientX;
-		const startY = e.clientY;
-		const baseLeft = rect.left;
-		const baseTop = rect.top;
-		const clampX = (v) => Math.max(8 - rect.width + 80, Math.min(v, window.innerWidth - 80));
-		const clampY = (v) => Math.max(8, Math.min(v, window.innerHeight - 40));
-		const onMove = (ev) => setPos({ x: clampX(baseLeft + ev.clientX - startX), y: clampY(baseTop + ev.clientY - startY) });
-		const onUp = () => {
-			window.removeEventListener("pointermove", onMove);
-			window.removeEventListener("pointerup", onUp);
-			document.body.style.userSelect = "";
-		};
-		document.body.style.userSelect = "none";
-		window.addEventListener("pointermove", onMove);
-		window.addEventListener("pointerup", onUp);
+	// 持仓卡内联编辑股数/成本：与自选页同一保存路径（POST /watchlist/add 的更新分支），
+	// 保存后广播 watchlist-changed，自选页与标签徽标同步刷新。
+	const savePosition = (patch) => {
+		api(API.watchlist + "/add", { method: "POST", body: { code, name: name ?? code, ...patch } })
+			.then((d) => {
+				const entry = (d.watchlist ?? []).find((e) => e.code === code) ?? null;
+				setWlEntry(entry);
+				setWatching(entry !== null);
+				window.dispatchEvent(new Event("leekbox:watchlist-changed"));
+			})
+			.catch(notifyFailure("保存持仓"));
 	};
-	const centerWindow = () => {
-		const rect = cardRef.current !== null ? cardRef.current.getBoundingClientRect() : null;
-		if (rect === null) return;
-		setPos({
-			x: Math.max(8, Math.round((window.innerWidth - rect.width) / 2)),
-			y: Math.max(8, Math.round((window.innerHeight - rect.height) / 2))
-		});
+	// 持仓卡（仅右栏）：股数/成本可内联编辑，盈亏按现价即时算，预警显示条件摘要。
+	const posCard = () => {
+		const qty = Number(wlEntry?.qty);
+		const cost = Number(wlEntry?.cost);
+		const px = Number(q?.price);
+		const hasPos = Number.isFinite(qty) && qty > 0 && Number.isFinite(cost) && cost > 0 && Number.isFinite(px);
+		const pl = hasPos ? (px - cost) * qty : null;
+		const plPct = hasPos ? ((px - cost) / cost) * 100 : null;
+		return h(
+			"div",
+			{ className: "lkb-posCard" },
+			h("div", { className: "lkb-secTitle" }, "我的持仓"),
+			h(
+				"div",
+				{ className: "lkb-posGrid" },
+				h("div", { className: "lkb-posItem" }, h("span", { className: "lkb-posLabel" }, "股数"), h(PositionCell, { value: wlEntry?.qty, placeholder: "+股数", onSave: (v) => savePosition({ qty: v }) })),
+				h("div", { className: "lkb-posItem" }, h("span", { className: "lkb-posLabel" }, "成本"), h(PositionCell, { value: wlEntry?.cost, placeholder: "+成本", onSave: (v) => savePosition({ cost: v }) })),
+				h("div", { className: "lkb-posItem" }, h("span", { className: "lkb-posLabel" }, "持仓盈亏"), hasPos ? h("b", { className: trend(pl) }, `${fmtSign(pl)}　${fmtPct(plPct)}`) : h("span", { className: "lkb-posEmpty" }, "设股数+成本后显示")),
+				h("div", { className: "lkb-posItem" }, h("span", { className: "lkb-posLabel" }, "价格预警"), alerts.length === 0 ? h("span", { className: "lkb-posEmpty" }, "未设置") : h("span", null, alerts.map((a) => alertLabel(a)).join(" / ")))
+			)
+		);
 	};
 	const item = (label, value, cls) => h("div", { className: "lkb-qItem" }, h("div", { className: "lkb-qLabel" }, label), h("div", { className: "lkb-qValue " + (cls ?? "") }, value));
+	// 操作行（原窗头按钮的去处）：自选开关 + 价格预警 + 右栏专属的「打开完整详情」。
+	// 页面版放内容顶部（紧贴子页面包屑），右栏版放内容底部（对应设计稿的操作条）。
+	const actionsRow = h(
+		"div",
+		{ className: "lkb-detailActions" },
+		isIndex
+			? h("span", { className: "lkb-mktTag", title: "指数不可交易" }, "指数 · 不可交易")
+			: h("button", { className: "lkb-btnGhost", onClick: toggleWatch }, watching ? "★ 已自选" : "☆ 加自选"),
+		isIndex ? null : h("button", { className: "lkb-btnGhost", "data-active": alertOpen ? "true" : "false", onClick: () => setAlertOpen((v) => !v) }, "🔔 价格预警"),
+		onDrill ? h("button", { className: "lkb-btnPrimary", onClick: onDrill }, "⤢ 打开完整详情") : null
+	);
 	const mkt = cnMarket(String(code ?? "").slice(0, 2).toUpperCase());
 	return h(
 		"div",
-		{ className: "lkb-win", ref: cardRef, style: { left: pos.x, top: pos.y, zIndex: z }, onPointerDown: onFocus },
-		h(
-			"div",
-			{ className: "lkb_head", title: "拖动移动窗口 · 双击居中", onPointerDown: onHeadDown, onDoubleClick: centerWindow },
-			h("span", { className: "lkb_headTitle" }, h("span", { className: "lkb-logo" }, "📈"), name ?? code, h("span", { className: "lkb-code" }, code), mkt === "" ? null : h("span", { className: "lkb-mktTag" }, mkt)),
-			h(
-				"div",
-				{ className: "lkb_headRight" },
-				isIndex ? h("span", { className: "lkb-mktTag", title: "指数不可交易" }, "指数") : h("button", { className: "lkb-btnGhost", onClick: toggleWatch }, watching ? "★ 已自选" : "☆ 加自选"),
-				h("button", { className: "lkb_close", title: "关闭", onClick: onClose }, "✕")
-			)
-		),
+		{ className: variant === "rail" ? "lkb-detail lkb-detailRail" : "lkb-detail" },
 		h(
 			"div",
 			{ className: "lkb_body" },
 			error === "" ? null : h("div", { className: "lkb-error" }, error),
+			variant === "rail" ? null : actionsRow,
+			variant === "rail" ? null : alertOpen && !isIndex ? h(AlertForm, { code, name: name ?? code, onDone: () => setAlertOpen(false) }) : null,
 			h(
 				"div",
 				{ className: "lkb-hero" },
@@ -638,14 +673,18 @@ export function StockDetailWindow({ code, name, isIndex, x, y, z, onFocus, onClo
 					h(
 						"span",
 						{ className: "lkb-periodRow" },
-						["today", "m5day", "day", "week", "month", "quarter", "year", "m120", "m60", "m30", "m15", "m5", "m1"].map(
-							(p) => h("button", { key: p, className: "lkb-period", "data-active": period === p ? "true" : "false", onClick: () => setPeriod(p) }, { today: "分时", m5day: "五日", day: "日K", week: "周K", month: "月K", quarter: "季K", year: "年K", m120: "120分", m60: "60分", m30: "30分", m15: "15分", m5: "5分", m1: "1分" }[p])
+						(variant === "rail" ? PERIODS_RAIL : PERIODS_ALL).map(
+							(p) => h("button", { key: p, className: "lkb-period", "data-active": period === p ? "true" : "false", onClick: () => setPeriod(p) }, PERIOD_LABELS[p])
 						)
 					)
 				),
 				kError === "" ? null : h("div", { className: "lkb-error" }, kError),
 				period === "today" ? h(MinuteChart, { points: minute?.points, prevClose: q?.prevClose, date: minute?.date }) : h(KlineChart, { klines })
 			),
+			// 右栏紧凑版的尾部：持仓卡 → 预警表单（按需）→ 操作行（对应设计稿底部操作条）。
+			variant === "rail" ? posCard() : null,
+			variant === "rail" && alertOpen && !isIndex ? h(AlertForm, { code, name: name ?? code, onDone: () => setAlertOpen(false) }) : null,
+			variant === "rail" ? actionsRow : null,
 			fflow !== null && fflow.length > 0 ? h(
 				"div",
 				{ className: "lkb-chartBox" },

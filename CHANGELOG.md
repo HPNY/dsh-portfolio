@@ -3,6 +3,27 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.22.0] - 2026-11-12
+
+「弹窗 → 页面」整体迁移（设计方向 C·主从联动 + B·钻取子页，设计稿经确认后实施）。面板不再是全屏遮罩弹窗，而是 DSH 主区域的原生面板页面。
+
+### Changed
+
+- **面板页面化**：`PortfolioPanel` 弹窗（遮罩 + 居中卡片 + 拖拽 + ✕ 关闭）迁移为 `PortfolioPage` 页面，由宿主经官方 **`main` slot** 挂载。页头（logo + 标题 + 交易时段状态 + ⚙ 设置）、7 页签、免责声明页脚原样保留，内容区从 640px 固定卡片变为**主列全高**（同屏信息量约 +45%）。拖拽移动 / 双击复位 / ESC 关面板三个弹窗专属交互删除。
+- **侧栏入口官方化**：手搓 DOM 注入的 sidebar.js（cloneNode 复刻原生行 + MutationObserver 补挂的整套补丁）退役，改为注册 **`sidebar.panellist`**（图标组件 `PanelIcon`，尺寸随宿主 size 参数 16/18）。入口成为完全原生的面板行：随菜单整体滚动、获得选中态 / 折叠栏 / 固定 / 更多菜单，与「插件」「大肥鱼军械库」同一套机制——「不随整体滚动、单独显示」的根因就此消除。
+- **详情形态重做为右栏联动（方向 C）**：点个股/基金行 → **右侧详情栏**即时切换（不再是开浮窗）。右栏紧凑版含大字报价、6 档周期分时/K 线（分时默认）、行情统计、**我的持仓卡**（股数/成本内联编辑、持仓盈亏、预警摘要）；操作行 = ☆ 加自选 / 🔔 价格预警（复用自选页 AlertForm）/ ⤢ 打开完整详情。
+- **⤢ 打开完整详情 → 钻取子页（方向 B）**：整页详情（面包屑「‹ 返回」）展示完整 13 档周期 + 资金流图/明细表 + F10 财务摘要；右栏紧凑版不发资金流/F10 请求（variant 门控）。ESC 层级 = 先退子页、再收右栏、无则不动作（纯函数 `escTarget`，替代旧 `topWindow` 窗口栈判定），输入框内 ESC 不劫持。
+- 基金详情同套变体：右栏 = 净值区 / 净值走势（6 区间）/ 我的持仓；子页再加阶段涨幅与最新披露前十大重仓股。
+
+### Removed
+
+- **窗口系统整体退役**：`wins` 数组 / z 序 / 拖拽 / 挂载后视口夹取 / `mountPanel` 自挂 createRoot、`.lkb_overlay` / `.lkb_card` / `.lkb-win` 三个浮层类及其暗色规则。多窗同屏对比能力随设计确认（方向 C）移除。
+- 侧边栏 DOM 注入（sidebar.js）与 `.lkb_entry*` 样式族。
+
+### Tests
+
+- `client-bundle-test.mjs` 锚点随契约重写：slot 注册断言（main + sidebar.panellist，apply 桩上验证两个 register 真实发出）、DetailRail / SubDetail / escTarget / 持仓卡接线、窗口系统退役否证（setWins/topWindow/mountPanel 不得复活）；`p2-silent-fixes-test.mjs` 的「ESC 关置顶窗口」段改为 escTarget 层级断言。24/24 套件通过，新锚点做过变异验证（改坏必红、还原必绿）。
+
 ## [0.14.0] - 2026-10-11
 
 ### Added
