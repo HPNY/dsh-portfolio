@@ -135,7 +135,31 @@ check(
 	"注册失败不静默（显式探活 ctx.slots + console.error 可诊断告警）",
 	src.includes('if (ctx?.slots === void 0)') && src.includes("[portfolio] ctx.slots 不可用") && src.includes("[portfolio] 面板注册失败：")
 );
-// ── 悬停预览（hover 显示 / 移开取消）────────────────────────────────────
+// ── 响应式适配（按面板实际宽度，容器查询）──────────────────────────────
+//
+// 面板宽度取决于侧栏是否折叠与窗口大小，媒体查询感知不到侧栏折叠，
+// 所以布局断点必须用容器查询（container-type:inline-size 在 .lkb-page 上）。
+// 三档：>=1080 宽屏现状 / 860-1080 收紧 / <860 右栏改覆盖式抽屉 + 表格横向可滚。
+check(
+	"页面是容器查询容器（container-type:inline-size + 具名 lkbpage）",
+	/\.lkb-page\{[^}]*container-type:inline-size/.test(src) && /container-name:lkbpage/.test(src)
+);
+check(
+	"三档断点齐全（1080 / 860 / 640）",
+	/@container lkbpage \(max-width:1080px\)/.test(src) && /@container lkbpage \(max-width:860px\)/.test(src) && /@container lkbpage \(max-width:640px\)/.test(src)
+);
+check(
+	"窄容器下右栏改覆盖式抽屉（不挤占列表宽度）",
+	/@container lkbpage \(max-width:860px\)[\s\S]*?\.lkb-rail\{position:absolute/.test(src)
+);
+check(
+	"窄容器下宽表可横向滚动（不再被 overflow:hidden 裁掉）",
+	/@container lkbpage \(max-width:860px\)[\s\S]*?\.lkb_body\{overflow-x:auto\}/.test(src) && /\.lkb_body table\{min-width:/.test(src)
+);
+check(
+	"浮窗与悬停预览在小视口收窄（fixed 层用媒体查询）",
+	/@media \(max-width:900px\)\{[\s\S]*?\.lkb-floatWin\{width:min\(360px,94vw\)\}/.test(src) && /\.lkb-hoverCard\{width:min\(300px,96vw\)/.test(src)
+);
 //
 // 需求原话：「鼠标悬停在对应股票和基金项上时显示浮窗，移开后取消浮窗显示」。
 // 四个要点都要在产物里可验证：延迟出现（不是划过就闪）、移开收起、

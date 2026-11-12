@@ -3,6 +3,18 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.25.0] - 2026-11-12
+
+### Added
+
+- **响应式适配（容器查询）**：此前只有 `clamp`/`vw` 的弹性宽度，没有断点——窄窗下右栏固定占 320px+ 会把列表挤扁，宽表还会被 `overflow-x:hidden` 裁掉。现在按**面板实际宽度**（`container-type:inline-size` + 具名 `lkbpage`）分三档，比媒体查询准确，因为面板宽度取决于侧栏折叠状态：
+  - `≥1080px`：宽屏现状（右栏 36% 并排）。
+  - `860–1080px`：右栏收窄到 `clamp(280px,32%,360px)`，页面留白与页签间距收紧。
+  - `<860px`：右栏改为**覆盖式抽屉**（绝对定位浮在列表之上，不挤占布局宽度），页签只留图标，宽表可横向滚动（`overflow-x:auto` + 表格 `min-width`）。
+  - `<640px`：抽屉全宽、标题缩小。
+- 浮窗与悬停预览是 `fixed` 层，按视口收窄：`≤900px` 宽 360/340px，`≤600px` 宽 300px 且限高。
+- 抽屉模式仍可用 ✕ 与 ESC 关闭（既有 `escTarget` 层级不变）。
+
 ## [0.24.0] - 2026-11-12
 
 ### Added

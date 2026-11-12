@@ -7,7 +7,10 @@ const CSS = `
    弹窗时代的 .lkb_overlay / .lkb_card / .lkb-win 与侧边栏 DOM 入口（.lkb_entry*）
    已随迁移退役：面板由宿主经 main slot 挂载成页面，详情走右栏联动（方向 C）
    与钻取子页（方向 B）。表格样式作用域从 .lkb_card 平移到 .lkb-page。 */
-.lkb-page{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+/* 面板宽度取决于侧栏是否折叠、窗口大小，用**容器查询**比媒体查询准确：
+   容器就是页面根节点自己（container-type:inline-size），断点按"面板实际可用宽度"
+   而不是"窗口宽度"触发——侧栏展开/折叠时面板宽度会变，媒体查询感知不到。 */
+.lkb-page{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;container-type:inline-size;container-name:lkbpage}
 .lkb-split{flex:1;min-height:0;display:flex;align-items:stretch}
 .lkb-split .lkb_body{flex:1;min-width:0}
 .lkb-rail{flex:none;width:clamp(320px,36%,440px);min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--dsw-alias-border-l1,#e8e9ed);background:var(--dsw-alias-bg-base,#fff)}
@@ -45,6 +48,54 @@ const CSS = `
 .lkb-hoverCard .lkb-heroGrid{grid-template-columns:repeat(2,1fr)}
 body[data-ds-dark-theme] .lkb-hoverCard{background:#2c2c2e;border-color:#ffffff1f;box-shadow:0 16px 44px #000000cc}
 body[data-ds-dark-theme] .lkb-hoverHead{background:#2c2c2e;border-color:#ffffff14}
+/* ---- 响应式断点（容器查询，按面板实际宽度）---------------------------------
+   三档：
+     >=1080px  宽屏：现状（右栏 36%、浮窗/预览大尺寸）
+     860-1080  中屏：右栏收窄、页面留白收紧、报价网格降到 2 列
+     <860      窄屏：右栏改为**浮层抽屉**（覆盖在列表上方而不是挤占宽度），
+               表格允许横向滚动（否则 nowrap 的单元格会被 overflow:hidden 裁掉）
+   DSH 自己的侧栏也用容器查询处理折叠态，这里沿用同一机制。 */
+@container lkbpage (max-width:1080px){
+  .lkb_body{padding:12px 14px 8px}
+  .lkb_head{padding:10px 14px}
+  .lkb_tabBar{padding:8px 12px;gap:6px}
+  .lkb-rail{width:clamp(280px,32%,360px)}
+  .lkb-crumb{padding:10px 14px}
+  .lkb-foot{padding:8px 14px}
+}
+/* 表格在窄容器里横向滚动：包一层滚动壳，避免 nowrap 单元格被裁。
+   .lkb-page 的表格规则本身不动，只改滚动行为。 */
+@container lkbpage (max-width:860px){
+  /* 右栏改为覆盖式抽屉：绝对定位浮在列表右侧之上，不占布局宽度 */
+  .lkb-split{position:relative}
+  .lkb-rail{position:absolute;top:0;right:0;bottom:0;width:min(420px,88%);z-index:20;box-shadow:-12px 0 32px #00000026;border-left:1px solid var(--dsw-alias-border-l1,#e8e9ed)}
+  .lkb_body{padding:10px 12px 6px}
+  .lkb_tabLabel{display:none}
+  .lkb_tab{padding:0 10px}
+  .lkb-heroGrid{grid-template-columns:repeat(2,1fr);min-width:0}
+  /* 宽表在窄屏可左右拖，而不是被裁掉：让内容区自身横向滚动 + 给表格最小宽度。
+     零侵入（不给 8 处 table 各包一层滚动壳），代价是工具栏跟着横向滚——窄屏下可接受。 */
+  .lkb_body{overflow-x:auto}
+  .lkb_body table{min-width:560px}
+  .lkb_fundBody{overflow-x:auto}
+  .lkb_fundBody table{min-width:560px}
+  .lkb-foot span:first-child{display:none}
+}
+@container lkbpage (max-width:640px){
+  .lkb_headTitle{font-size:14px}
+  .lkb_tab{padding:0 8px}
+  .lkb-heroGrid{grid-template-columns:repeat(2,1fr)}
+  .lkb-rail{width:100%;box-shadow:none}
+}
+/* 浮窗与悬停预览在小视口下收窄（这两个是 fixed 定位，按视口而非面板宽度，用媒体查询） */
+@media (max-width:900px){
+  .lkb-floatWin{width:min(360px,94vw)}
+  .lkb-hoverCard{width:min(340px,94vw)}
+}
+@media (max-width:600px){
+  .lkb-floatWin{width:min(300px,96vw);max-height:60vh}
+  .lkb-hoverCard{width:min(300px,96vw);max-height:56vh}
+}
 /* ---- 浮窗层（方向 A 叠加）：右栏联动之外，钉住的标的可并排对比 ---- */
 .lkb-floatLayer{position:fixed;inset:0;z-index:2147483600;pointer-events:none}
 .lkb-floatWin{position:fixed;pointer-events:auto;width:min(420px,92vw);max-height:min(72vh,620px);display:flex;flex-direction:column;overflow:hidden;background:var(--dsw-alias-bg-overlay,#fdfdfd);color:var(--dsw-alias-label-primary,#1c1e26);border:1px solid var(--dsw-alias-border-l1,#e8e9ed);border-radius:14px;box-shadow:0 20px 60px #00000040;animation:lkb-pop .14s ease-out}
