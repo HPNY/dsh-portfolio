@@ -55,8 +55,11 @@ const SCREEN_FACTOR_GROUPS_FALLBACK = [
 	{ key: "pattern", label: "形态识别", items: ["bullishEngulfing", "morningStar", "longUpperShadow", "longLowerShadow", "doji"] },
 	{ key: "td", label: "TD序列", items: ["tdSetup9", "tdCountdown13"] },
 	{ key: "vwap", label: "VWAP", items: ["aboveVwap", "belowVwap"] },
-	{ key: "numeric", label: "数值因子", items: ["rsiValue", "macdHistValue", "volumeRatioValue", "atrValue", "atrPercent", "changePctValue", "turnoverRateValue", "priceAboveMa20Pct", "bollWidth"] },
 ];
+// 注意：服务端的 FACTOR_GROUPS 只有 7 个布尔因子分组，9 个数值因子
+// （rsiValue/atrPercent/…）不在任何分组里 —— 它们只服务于条件 DSL，不进勾选面板。
+// 这里曾多列过一个 numeric 分组，导致离线兜底时能勾选数值因子，提交后被服务端
+// 按「必选因子必须 === true」静默筛空。兜底表必须与线上一致。
 const SCREEN_FACTOR_PRESETS_FALLBACK = [
 	{ key: "trend_following", label: "趋势跟踪", factors: ["aboveMa20", "aboveMa60", "macdGoldenCross", "volumeSpike"] },
 	{ key: "oversold_rebound", label: "超卖反弹", factors: ["rsiOversold30", "longLowerShadow", "morningStar"] },

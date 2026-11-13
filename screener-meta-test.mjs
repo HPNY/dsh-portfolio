@@ -78,6 +78,20 @@ const partial = buildScreenMeta({ signals: [{ key: "macdGold", label: "MACD金�
 check("残缺 meta 不渲染 undefined 分组", partial.groups.length === 0 || partial.groups.every((g) => g.items.length > 0));
 check("未知 key 不进分组", buildScreenMeta({ signals: [{ key: "macdGold", label: "MACD金叉" }], signalGroups: [{ key: "x", label: "X", items: ["macdGold", "ghost"] }] }).groups[0].items.join(",") === "macdGold");
 
+// 7.5) 兜底的**因子**分组必须与线上一致。
+// 曾经这里多列了一个 numeric 分组（9 个数值因子），离线时用户能勾上它们；
+// 但引擎的必选闸门是 factors[k] === true，而数值因子取到的是数字，于是整轮
+// 选股被静默筛空——界面显示「完成，0 只」而不是报错。兜底表多一行就会踩到。
+const factorGroupsOf = (meta) => meta.factorGroups.map((g) => `${g.key}:${g.items.join("+")}`).join("|");
+check("兜底因子分组数与服务端一致", fb.factorGroups.length === server.factorGroups.length,
+	`兜底 ${fb.factorGroups.length} vs 服务端 ${server.factorGroups.length}`);
+check("兜底因子分组内容与服务端一致", factorGroupsOf(fb) === factorGroupsOf(buildScreenMeta(server)));
+const fbFactorItems = new Set(fb.factorGroups.flatMap((g) => g.items));
+const numericKeys = server.factors.filter((f) => f.type === "number").map((f) => f.key);
+check("兜底不含数值因子（它们不可作必选条件）", numericKeys.every((k) => !fbFactorItems.has(k)),
+	numericKeys.filter((k) => fbFactorItems.has(k)).join(","));
+check("数值因子仍是 9 个", numericKeys.length === 9, numericKeys.join(","));
+
 //#region 8. 端到端：路由按 error.code 分流 + 白名单过滤未知字段（无网络）
 {
 	const os = await import("node:os");
@@ -118,6 +132,17 @@ check("未知 key 不进分组", buildScreenMeta({ signals: [{ key: "macdGold", 
 		check("未知字段被过滤且不报错", junk.code === 200, `${junk.code} ${junk.parsed?.error ?? ""}`);
 		check("无匹配时返回空结果行", junk.parsed?.matched === 0 && Array.isArray(junk.parsed?.rows) && junk.parsed.rows.length === 0, JSON.stringify(junk.parsed));
 		check("未知字段没有渗进结果", junk.parsed?.totallyBogus === void 0, JSON.stringify(junk.parsed));
+
+		// factor 模式的必选因子必须是布尔因子：数值因子（RSI值/ATR%…）取到的是数字，
+		// 而引擎的闸门是 factors[k] === true，放行的话整轮会被静默筛空成「0 只」。
+		// 这里要的是明确的 400，而不是一个看起来正常的空结果。
+		const numericReq = await post({ mode: "factor", factorRequire: ["rsiValue"] });
+		check("数值因子作必选 → 400", numericReq.code === 400, `${numericReq.code} ${numericReq.parsed?.error}`);
+		check("数值因子被拒时文案点名该因子", (numericReq.parsed?.error ?? "").includes("rsiValue"), numericReq.parsed?.error);
+		const mixedReq = await post({ mode: "factor", factorRequire: ["aboveMa20", "atrPercent"] });
+		check("布尔+数值混合必选 → 400", mixedReq.code === 400, `${mixedReq.code} ${mixedReq.parsed?.error}`);
+		const boolReq = await post({ mode: "factor", factorRequire: ["aboveMa20"], universe: 1 });
+		check("布尔因子作必选 → 200", boolReq.code === 200, `${boolReq.code} ${boolReq.parsed?.error ?? ""}`);
 	} finally {
 		globalThis.fetch = origFetch;
 	}
