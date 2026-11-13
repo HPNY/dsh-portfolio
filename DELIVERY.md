@@ -4,7 +4,7 @@
 同时覆盖**场内**（股票 / ETF / 可转债 / LOF）与**场外基金**。
 
 > **本文件是 v0.20.0「场外基金模块上线」的交付记录，不是当前版本的说明。**
-> 当前版本见 `package.json`（v0.26.1）与 [CHANGELOG.md](CHANGELOG.md)。
+> 当前版本见 `package.json`（v0.26.4）与 [CHANGELOG.md](CHANGELOG.md)。
 > 文中凡是标注了「实测于 2026-11-03」的数值与运行状态，都是当时的现场快照；
 > 插件标识（行 id、bundle 名、health 中的 `plugin` 字段）与测试套件数量此后已变，
 > 已在正文中逐处标注现值。后续版本（页面化、浮窗、悬停预览、响应式、排序）不在本文件范围内。
@@ -12,7 +12,9 @@
 - 上游：`SuCriss/dsh-leekbox` @ `1d47fb1`（MIT），见 [NOTICE.md](NOTICE.md)
 - 基金子系统契约：[docs/otc-fund.md](docs/otc-fund.md)
 - 安装状态：已装入 `desktop` profile（`link:` 到本仓库），实测生效
-- 注：仓库根目录的 `SUMMARY.md` 是**上游**关于「量化因子选股」的既有文档，未改动。
+- 注：仓库根目录的 `SUMMARY.md` 与 `QUANT_FACTOR_INTEGRATION.md` 是**上游**关于「量化因子选股」的既有文档，
+  交付当时未改动；v0.26.4 起已把其中陈旧的「30+ 因子 / 8 分组」更正为实际的 **35 因子（26 布尔 + 9 数值）/ 7 分组 / 5 预设**，
+  详见 [CHANGELOG.md](CHANGELOG.md) 的 0.26.4 段。
 
 ---
 
@@ -128,7 +130,7 @@
 
 实测（重挂载后，运行中的宿主）：
 
-- `/api/leekbox/health` → `plugin: "leekbox-plus"`（现为 `dsh-portfolio`）、`version: "0.20.0"`（现为 `0.26.1`），
+- `/api/leekbox/health` → `plugin: "leekbox-plus"`（现为 `dsh-portfolio`）、`version: "0.20.0"`（现与 `package.json` 一致），
   并已出现 `otcFundGzList` / `otcFundMob` / `otcFundProfile` 三个缓存计数（证明新模块确实加载）。
 - snapshot 行 **16 键**，`neededRisePct: 21.5`、`marketValue: 17407.273400000002`（未舍入）、
   `pnl: -3742.6721699999994`（未舍入），`summary` 舍入到分。

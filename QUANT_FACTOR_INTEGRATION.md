@@ -2,7 +2,7 @@
 
 ## 概述
 
-成功将 aiwuchuan.com 的量化因子选股系统逆向工程并集成到 dsh-leekbox 的选股 tab 中。新增了第四种选股模式「量化因子」，提供 30+ 个量化因子和 5 个预设组合。
+成功将 aiwuchuan.com 的量化因子选股系统逆向工程并集成到 dsh-leekbox 的选股 tab 中。新增了第四种选股模式「量化因子」，提供 **35 个量化因子**（26 个布尔因子 + 9 个数值因子）和 5 个预设组合。
 
 ## 集成内容
 
@@ -20,7 +20,7 @@
 
 #### 2.1 因子定义 (FACTOR_META)
 
-新增 30+ 个量化因子，分为 8 个分组：
+新增 35 个量化因子（26 个布尔因子 + 9 个数值因子）。`FACTOR_GROUPS` 里只声明 **7 个分组**，全部是布尔因子；数值因子不属任何分组，只服务于条件 DSL，不进勾选面板。
 
 **价格位置 (price)**
 - `aboveMa5` - 站上MA5
@@ -62,7 +62,9 @@
 - `aboveVwap` - 站上VWAP
 - `belowVwap` - 跌破VWAP
 
-**数值因子 (numeric)** - 用于条件 DSL
+**数值因子 (numeric)** - 不属于 `FACTOR_GROUPS` 的任何分组，只用于条件 DSL；
+不能作为「必选因子」提交（服务端会 400），因为必选闸门是 `factors[k] === true`，
+而它们取到的是数字。
 - `rsiValue` - RSI值
 - `macdHistValue` - MACD柱
 - `volumeRatioValue` - 量比值
@@ -147,24 +149,28 @@
 
 ## 使用方法
 
-### 1. 启动服务
+### 1. 安装与重载
+
+本 fork 是 DSH 插件，没有独立的 `npm start`，也不监听固定端口：
 
 ```bash
-cd D:\code\tst-pl\dsh-leekbox
-npm run build
-npm start
+npm run build                                   # 重新生成 lib/client.js
+dsh plugin --profile web add github:HPNY/dsh-portfolio
 ```
+
+改了 `lib/*.js` 后**只刷新浏览器不够**——宿主进程不会热重载服务端代码，需重启
+DSH 或触发一次 profile 重新组合；否则新路由会返回 401/404 且写入静默不落盘。
 
 ### 2. 使用量化因子选股
 
-1. 打开浏览器访问 http://127.0.0.1:7890
-2. 点击左侧「选股」tab
+1. 在 DSH 侧栏点「持仓看板」
+2. 切到「选股」页签
 3. 点击「量化因子」模式按钮
 4. 选择预设组合（可选）：
    - 勾选一个或多个预设组合
    - 设置「至少命中组合数」
 5. 选择必选因子（可选）：
-   - 展开各分组，勾选必须满足的因子
+   - 展开各分组，勾选必须满足的因子（只有 7 个布尔因子分组可选）
 6. 设置因子得分阈值（可选）
 7. 点击「开始选股」
 
@@ -203,8 +209,8 @@ npm start
 │  └────────────────────────────────────────────────────┘  │
 │  ┌────────────────────────────────────────────────────┐  │
 │  │  lib/signals.js                                      │  │
-│  │  - FACTOR_META (30+ 因子定义)                        │  │
-│  │  - FACTOR_GROUPS (8 个分组)                          │  │
+│  │  - FACTOR_META (35 个因子：26 布尔 + 9 数值)        │  │
+│  │  - FACTOR_GROUPS (7 个布尔因子分组)                  │  │
 │  │  - FACTOR_PRESETS (5 个预设组合)                     │  │
 │  │  - computeQuantFactors()                             │  │
 │  │  - evaluateFactorCondition()                         │  │
@@ -239,7 +245,7 @@ npm test
 ### 修改的文件
 
 1. `lib/indicators.js` - 新增 5 个技术指标函数
-2. `lib/signals.js` - 新增量化因子系统（30+ 因子、8 分组、5 预设）
+2. `lib/signals.js` - 新增量化因子系统（35 因子 = 26 布尔 + 9 数值、7 个分组、5 预设）
 3. `lib/screener-validate.js` - 新增 factor 模式参数校验
 4. `lib/screener.js` - 新增 factor 模式筛选逻辑
 5. `lib/screener-cache.js` - 更新缓存键
@@ -247,12 +253,12 @@ npm test
 
 ### 生成的文件
 
-1. `lib/client.js` - 重新构建的客户端 bundle (189.9kb)
+1. `lib/client.js` - 重新构建的客户端 bundle（当前 285kb 量级）
 
 ## 参考文档
 
-- [逆向分析报告.md](file:///D:/code/tst-pl/aiwuchuan_re/逆向分析报告.md) - aiwuchuan.com 逆向分析
-- [实现模板.ts](file:///D:/code/tst-pl/aiwuchuan_re/实现模板.ts) - TypeScript 实现模板
+原始逆向分析资料（`逆向分析报告.md`、`实现模板.ts`）在原作者本地，**没有随仓库分发**；
+本文件与 `SUMMARY.md` 是仓库内仅有的集成说明。
 
 ## 后续优化建议
 
@@ -264,4 +270,10 @@ npm test
 
 ## 总结
 
-成功将 aiwuchuan.com 的量化因子选股系统集成到 dsh-leekbox，新增了 30+ 个量化因子、8 个分组、5 个预设组合。前端 UI 支持因子选择和预设组合选择，后端实现了完整的筛选逻辑。所有测试通过，功能可用。
+成功将 aiwuchuan.com 的量化因子选股系统集成到 dsh-leekbox，新增了 **35 个量化因子**（26 个布尔 + 9 个数值）、7 个布尔因子分组、5 个预设组合。前端 UI 支持因子选择和预设组合选择，后端实现了完整的筛选逻辑。所有测试通过，功能可用。
+
+> **后续修订（v0.26.4）**：原文写的「8 个分组」是错的——`FACTOR_GROUPS` 一直只有 7 个，
+> 第 8 个 `numeric` 组只存在于客户端的离线兜底表里。这处不一致会让离线状态下
+> 能勾选数值因子，而引擎的必选闸门是 `factors[k] === true`、数值因子取到的是数字，
+> 于是整轮选股被静默筛空。现已从兜底表删除该组，并在服务端对
+> 「数值因子作必选」明确返回 400。

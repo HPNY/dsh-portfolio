@@ -17,7 +17,7 @@
 - `vwap()` - 成交量加权平均价
 
 #### 1.2 量化因子系统 (lib/signals.js)
-- 定义 30+ 个量化因子，分为 8 个分组
+- 定义 35 个量化因子（26 布尔 + 9 数值），布尔因子分 7 个分组（数值因子不分组，只服务条件 DSL）
 - 实现 `computeQuantFactors()` 计算所有因子
 - 实现 `evaluateFactorCondition()` 评估条件
 - 实现 `matchesFactorPreset()` 匹配预设策略
@@ -68,7 +68,9 @@
 - **形态识别** (pattern): K线形态
 - **TD序列** (td): DeMark 序列计数
 - **VWAP** (vwap): 成交量加权平均价
-- **数值因子** (numeric): 用于条件 DSL
+- **数值因子** (numeric): 用于条件 DSL。**注意**：不在 `FACTOR_GROUPS` 里，
+  也不进勾选面板——引擎的必选闸门是 `factors[k] === true`，数值因子取到的是
+  数字，作为必选条件会把整轮选股静默筛空（v0.26.4 已从客户端兜底表删除）。
 
 ### 2. 预设组合策略
 - 趋势跟踪: MA20+MA60+MACD金叉+放量
@@ -99,26 +101,30 @@
 6. `src/client/screener-tab.js` - 新增量化因子 UI
 
 ### 生成的文件
-1. `lib/client.js` - 重新构建的客户端 bundle (189.9kb)
+1. `lib/client.js` - 重新构建的客户端 bundle（当前 285kb 量级）
 2. `QUANT_FACTOR_INTEGRATION.md` - 集成报告
 
 ## 使用方法
 
-### 启动服务
+### 安装与重载
+
+本 fork 是 DSH 插件，没有独立的 `npm start`，也不监听固定端口：
+
 ```bash
-cd D:\code\tst-pl\dsh-leekbox
 npm run build
-npm start
+dsh plugin --profile web add github:HPNY/dsh-portfolio
 ```
 
+改了 `lib/*.js` 后只刷新浏览器不够——需重启 DSH 或触发一次 profile 重新组合。
+
 ### 使用量化因子选股
-1. 打开浏览器访问 http://127.0.0.1:7890
-2. 点击左侧「选股」tab
-3. 点击「量化因子」模式按钮
-4. 选择预设组合（可选）
-5. 勾选必选因子（可选）
-6. 设置因子得分阈值（可选）
-7. 点击「开始选股」
+
+1. 在 DSH 侧栏点「持仓看板」，切到「选股」页签
+2. 点击「量化因子」模式按钮
+3. 选择预设组合（可选）
+4. 勾选必选因子（可选，仅 7 个布尔因子分组可选）
+5. 设置因子得分阈值（可选）
+6. 点击「开始选股」
 
 ## 后续优化建议
 
@@ -130,10 +136,9 @@ npm start
 
 ## 参考文档
 
-- [逆向分析报告.md](file:///D:/code/tst-pl/aiwuchuan_re/逆向分析报告.md) - aiwuchuan.com 逆向分析
-- [实现模板.ts](file:///D:/code/tst-pl/aiwuchuan_re/实现模板.ts) - TypeScript 实现模板
-- [QUANT_FACTOR_INTEGRATION.md](file:///D:/code/tst-pl/dsh-leekbox/QUANT_FACTOR_INTEGRATION.md) - 详细集成报告
+- [QUANT_FACTOR_INTEGRATION.md](./QUANT_FACTOR_INTEGRATION.md) - 详细集成报告
+- 原始逆向分析资料（`逆向分析报告.md`、`实现模板.ts`）在原作者本地，未随仓库分发
 
 ## 总结
 
-成功完成量化因子选股功能的集成，新增 30+ 个量化因子、8 个分组、5 个预设组合。前端 UI 支持因子选择和预设组合选择，后端实现了完整的筛选逻辑。所有测试通过，功能可用。
+成功完成量化因子选股功能的集成，新增 35 个量化因子（26 布尔 + 9 数值）、7 个布尔因子分组、5 个预设组合。前端 UI 支持因子选择和预设组合选择，后端实现了完整的筛选逻辑。所有测试通过，功能可用。

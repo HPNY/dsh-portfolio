@@ -3,6 +3,25 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.4] - 2026-11-13
+
+一次「核对文档数字时撞出来的真实缺陷」。写文档时去数因子到底是几个，才发现客户端兜底表与服务端定义早就不一致——而这一处不一致会让选股**静默返回空结果**，不是报错。
+
+### Fixed
+
+- **数值因子被当成必选因子时整轮选股被静默筛空**：选股引擎的必选闸门是 `for (const req of p.factorRequire) if (factors[req] !== true) return null;`（`lib/screener.js:323`），而 9 个数值因子（`rsiValue` / `macdHistValue` / `volumeRatioValue` / `atrValue` / `atrPercent` / `changePctValue` / `turnoverRateValue` / `priceAboveMa20Pct` / `bollWidth`）`computeQuantFactors` 给的是**数字**（RSI=56.3、ATR%=2.7……），永远不等于 `true`。于是只要勾中一个数值因子，每一只票都会在这一行被 `return null` 掉，用户看到的是「选股完成，0 只」——参数错了却看起来像市场没货。现在 `normalizeScreenerParams` 在 factor 模式下先拦一道：`factorRequire` 里只要出现 `type === "number"` 的因子就抛 `ScreenerError`（`ERR_INVALID_PARAMS`），路由据此回 **400**，文案点名具体是哪个因子。
+- **客户端兜底因子分组多出一个 `numeric` 组**：服务端 `FACTOR_GROUPS` 一直只有 7 个分组（`price` / `momentum` / `volatility` / `volume` / `pattern` / `td` / `vwap`），全部是布尔因子；数值因子不属任何分组，只服务于条件 DSL。但 `src/client/screener-tab.js` 的 `SCREEN_FACTOR_GROUPS_FALLBACK` 额外列了第 8 组 `numeric`（9 个数值因子）。这个兜底表在**服务端 meta 拉取失败时**才会生效——恰好就是网络最差、用户最需要它别出错的时候，它却给出一个能勾中上面那条死路的勾选框。已删除该组，并加注释说明为什么不能有它。
+
+### Tests
+
+- `screener-meta-test.mjs` 新增 8 条断言：兜底因子分组数与内容必须与服务端 `screenerMeta()` 完全一致、兜底不含任何数值因子、数值因子仍为 9 个；以及端到端三条——数值因子作必选 → **400**（文案点名该因子）、布尔+数值混合 → 400、纯布尔因子 → 200。
+- 变异验证：撤掉服务端拦截 → 3 条红；把 `numeric` 兜底组加回去 → 3 条红（`兜底 8 vs 服务端 7`）。两处都能被测试抓住。
+
+### Changed
+
+- **`QUANT_FACTOR_INTEGRATION.md` / `SUMMARY.md` 的数字与安装说明**：两份都写「30+ 个量化因子、8 个分组」，实测是 **35 个因子（26 布尔 + 9 数值）/ 7 个分组 / 5 预设**——那个「8」正是上面兜底表的错误被写进了文档。同时把它们里面的 `cd D:\code\tst-pl\dsh-leekbox` + `npm start` + `http://127.0.0.1:7890` 换成现状：本 fork 是 DSH 插件，`package.json` 里**从来没有** `start` 脚本，也不监听固定端口（`git log -S'"start"' -- package.json` 为空）。改成 `npm run build` + `dsh plugin --profile web add github:HPNY/dsh-portfolio`，并写明「改了 `lib/*.js` 只刷新浏览器不够」。失效的 `file:///D:/code/...` 死链一并去掉。这两份文档是上游 `bb79106` 带来的，本 fork 首次修改，在末尾注明这是后补修订。
+- **`DELIVERY.md` 的版本与标识**：停在 v0.20.0 的交付说明，写的是 bundle `dsh-leekbox-plus`、行 id `leekbox-plus`、`include:leekbox-plus`、以及「24 个套件 + 1 个已知上游缺陷」（该缺陷已由 `7f93b5f` 根治、`KNOWN_UPSTREAM_RED` 已清空）。全部对齐到现状（`dsh-portfolio` / `portfolio` / 26 个套件 / 零已知缺陷），并保留其作为 0.20.0 场外基金交付证据的历史记录性质。
+
 ## [0.26.3] - 2026-11-13
 
 一次「仓库自身的生成器与临时产物」收口。功能没有变化，修的是**会自己把成果改回旧品牌的东西**：`docs/og.png` 的生成脚本一直画的还是改名前的画面，任何人重跑一次就覆盖回旧品牌。
