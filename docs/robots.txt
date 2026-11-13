@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://sucriss.github.io/dsh-leekbox/sitemap.xml
+Sitemap: https://hpny.github.io/dsh-portfolio/sitemap.xml
