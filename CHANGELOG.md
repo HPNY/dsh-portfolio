@@ -3,6 +3,39 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.1] - 2026-11-13
+
+「拖拽排好的顺序重进页面又复原」的修复。用户报障后排查出两条独立原因：一条是宿主跑着旧服务端代码，一条是客户端**保存失败却装作成功**。
+
+### Fixed
+
+- **保存失败不再静默成功**：`table-sort.js` 的 `onDrop` 调用 `onReorder(ids)` 后没有检查返回结果，本地顺序（`setLocalOrder`）无论如何都生效——于是提交失败时界面照样显示新顺序，用户以为保存好了，下次进页面才发现复原。新增纯函数 `settleOrderCommit(outcome, onRollback)`：结果不是 thenable 时返回 `null`（无从判断，不假装回退），是 Promise 时成功不回退、失败回退并让调用方提示。
+- **两条提交链路改为如实上报失败**：`watchlist-tab.js` 的 `commitOrder` 改为 `return api(API.watchlistReorder, ...)`（不再吞掉异常），`otc-fund-tab.js` 的 `commitFundOrder` 失败时先 `setMsg(...)` 再 `throw e`，让 `settleOrderCommit` 能看见失败。
+- **文档写明服务端改动需重载宿主**：`lib/*.js` 改动必须重启 DSH 或触发 profile 重新组合，**只刷新浏览器不够**——浏览器拿到的仍是旧服务端（表现为 404/401 且写入不落盘）。这条排查结论已回写进 README 的「安装细节」与常见问题。
+
+### Tests
+
+- `sort-test.mjs` 增至 81 项：新增 `settleOrderCommit` 四条纯函数断言（成功不回退 / 失败回退 / 非 Promise 不回退 / `null` 不回退）与五条接线断言。变异验证 6 处全部抓红：自选不交 promise、自选吞失败、基金吞失败、drop 不回退、失败不回退、永远不检查结果。
+
+## [0.26.0] - 2026-11-13
+
+自选与基金两张表支持**点表头按列排序**与**拖拽行自定义顺序**，顺序持久化到服务端，重开页面仍在。
+
+### Added
+
+- **按列排序（`table-sort.js` / `table-sort-core.js`）**：`useTableSort(rows, getters, onReorder, idOf)` 返回 `{ sorted, sortKey, sortDir, toggleSort, dragProps, canDrag, dragging, overIndex }`。点表头走 **升序 → 降序 → 取消** 三态；`SortableTh` 输出 `aria-sort`、`▲/▼/⇅` 箭头、`tabIndex=0` 与 Enter/空格触发。自选 10 个可排序列（名称 / 现价 / 涨跌幅 / 持仓 / 成本 / 盈亏 / 昨收 / 今开 / 成交额 / 换手，最高·最低不参与），基金 6 个（基金 / 最新净值 / 盈亏 / 成本 / 份额 / 浮盈）。
+- **拖拽自定义顺序**：HTML5 draggable + 本地 `localOrder` 让拖拽立即生效不回弹；`tr[data-dragging]` 半透明、`tr[data-dragover]` 顶部蓝线提示落点。**按列排序期间拖拽自动停用**（`canDrag = onReorder != null && sortKey === null`），并显示提示条「当前按「X」升序排列，拖拽自定义顺序已暂停；再点表头可取消排序」。
+- **顺序持久化（服务端）**：新增 `POST /api/leekbox/watchlist/reorder`（`{ codes: [...] }`）与 `otc-fund/mutate` 的 `action: "reorder"`。**整份顺序提交**而非「移到某只前后」——客户端本就持有完整列表，整份提交幂等，重试 / 并发 / 拖拽中断都不留半截顺序。集合不一致回 **409**（自选「自选列表已变化，请刷新后重试」、基金「基金持仓已变化，请刷新后重试」），重复项回 400。
+- **基金 order 是独立第四键**：`emptyOtcFund()` 增加 `order: []`。`holdings` 是字典，`Object.keys()` 对 `"161725"` 这类整数样式键按数值升序而非插入顺序，**不能靠字典顺序保存拖拽结果**。`upsertHolding` 追加末尾、`deleteHolding` 摘除、`normalizeOtcFund` 读时过滤脏 order，新增 `reorderHoldings(data, codes)`（非法 / 重复 / 长度不符 / 含不存在 code 一律返回 `null`）。snapshot 无显式 codes 时按 `order` 排序并补齐未列出的持仓，不丢行。
+- **分组视图拖拽不破坏全局顺序**：`mergeSubsetOrder(fullItems, subsetOrder, idOf)` 把分组子集的相对顺序合并回完整列表再提交，否则在分组视图拖拽只提交子集会必 409。
+
+### Tests
+
+- 新增 `sort-test.mjs`（72 项 → 后续 81 项）：纯函数逐场景（升降取消、空值双向沉底、稳定性、中文拼音、`moveItem` 越界、`mergeSubsetOrder` 槽位语义）、**真调 `makeRoutes` handler** 的自选 reorder 路由测试（合法重排落盘、少一条/多一条→409、重复/非数组→400、GET 按自定义顺序返回）、**真调 store 纯函数**的基金 order 测试、以及用 esbuild + `test-react-stub.mjs` 打包后**真实调用组件函数**的渲染级断言。
+- 新增 `test-react-stub.mjs`：极简 React 桩，供 esbuild alias 把 `react` 指过来。
+- **测试抓到真 bug**：`sortRows` 原先把空值沉底写在 `compareValues` 里返回 ±1、再整体乘升降序符号，导致**降序时空值被翻到最上面**；改为在乘 `sign` 之前单独判定缺失值。
+- 教训：只 grep 源码字符串的断言等于没测（删校验、写反顺序都能过）；改为真调 handler / store / 渲染组件后，11 类变异（空值反向、降序丢符号、不校验集合、409 改 200、`canDrag` 恒真恒假等）全部能被抓红。
+
 ## [0.25.0] - 2026-11-12
 
 ### Added
