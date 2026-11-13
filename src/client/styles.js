@@ -31,6 +31,29 @@ const CSS = `
 .lkb-posItem{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--dsw-alias-label-secondary,#5f6672)}
 .lkb-posLabel{color:var(--dsw-alias-label-tertiary,#a2a7b3)}
 .lkb-posEmpty{color:var(--dsw-alias-label-tertiary,#a2a7b3);font-size:11px}
+/* ---- 排序（按列排序表头 + 自定义拖拽排序） --------------------------------- */
+/* 可排序表头：悬停给出可点暗示，当前排序列高亮；箭头未排序时是浅色 ⇅ 占位，
+   这样列宽不会因为"出现/消失箭头"而跳动。 */
+.lkb-thSort{cursor:pointer;user-select:none;white-space:nowrap}
+.lkb-thSort:hover{color:var(--dsw-alias-label-primary,#1c1e26)}
+.lkb-thSort .lkb-thLabel{vertical-align:middle}
+.lkb-sortArrow{display:inline-block;margin-left:3px;font-size:9px;opacity:.35;vertical-align:middle;transition:opacity .12s}
+.lkb-thSort:hover .lkb-sortArrow{opacity:.7}
+.lkb-thSortActive{color:#3b5bdb}
+.lkb-thSortActive .lkb-sortArrow{opacity:1}
+body[data-ds-dark-theme] .lkb-thSortActive{color:#a5b4fc}
+.lkb-sortHint{font-size:11px;color:var(--dsw-alias-label-tertiary,#a2a7b3);padding:2px 2px 8px;line-height:1.5}
+/* 拖拽态：被拖的行半透明，落点行给出明确的插入提示（顶部主线 + 淡底）。
+   cursor:grab 让用户知道行可以拖。 */
+.lkb-page tbody tr[draggable="true"]{cursor:grab}
+.lkb-page tbody tr[draggable="true"]:active{cursor:grabbing}
+.lkb-page tbody tr[data-dragging="true"]{opacity:.4}
+.lkb-page tbody tr[data-dragover="true"]{box-shadow:inset 0 2px 0 #4c6ef5;background:#eef2ff}
+body[data-ds-dark-theme] .lkb-page tbody tr[data-dragover="true"]{background:#2a3352}
+.lkb_fundPage tbody tr[draggable="true"]{cursor:grab}
+.lkb_fundPage tbody tr[draggable="true"]:active{cursor:grabbing}
+.lkb_fundPage tbody tr[data-dragging="true"]{opacity:.4}
+.lkb_fundPage tbody tr[data-dragover="true"]{box-shadow:inset 0 2px 0 #4c6ef5;background:#eef2ff}
 /* ---- 悬停预览浮窗（hover 显示、移开取消） ----------------------------------
    定位由 hover-preview.js 的 previewPosition 计算后写成行内 left/top；
    这里只管外观。z 高于页面内容、低于钉住浮窗与确认/ toast 层。 */

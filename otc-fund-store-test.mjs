@@ -39,18 +39,18 @@ try {
 	// ---- 2) 读取默认值 ----
 	console.log("== 2) readOtcFund 默认与容错 ==");
 	const empty = readOtcFund(home);
-	check("缺失文件 → 三键空形状", JSON.stringify(empty) === JSON.stringify({ holdings: {}, navSnapshots: {}, navHistory: {} }));
+	check("缺失文件 → 三键空形状", JSON.stringify(empty) === JSON.stringify({ holdings: {}, navSnapshots: {}, navHistory: {}, order: [] }));
 	check("默认对象互不共享引用", readOtcFund(home).holdings !== empty.holdings);
 
 	writeFileSync(otcFundPath(home), "{ this is not json", "utf8");
-	check("损坏 JSON → 空形状且不抛", JSON.stringify(readOtcFund(home)) === JSON.stringify({ holdings: {}, navSnapshots: {}, navHistory: {} }));
+	check("损坏 JSON → 空形状且不抛", JSON.stringify(readOtcFund(home)) === JSON.stringify({ holdings: {}, navSnapshots: {}, navHistory: {}, order: [] }));
 
 	writeFileSync(otcFundPath(home), JSON.stringify({ holdings: [], navSnapshots: "nope", navHistory: { "161616:2026-11-02": { code: "161616", date: "2026-11-02", nav: 1.606 } } }), "utf8");
 	const partial = readOtcFund(home);
 	check("错误键类型逐个回落，合法键保留", JSON.stringify(partial.holdings) === "{}" && JSON.stringify(partial.navSnapshots) === "{}" && Object.keys(partial.navHistory).length === 1);
 
 	writeFileSync(otcFundPath(home), JSON.stringify(null), "utf8");
-	check("顶层 null → 空形状", JSON.stringify(readOtcFund(home)) === JSON.stringify({ holdings: {}, navSnapshots: {}, navHistory: {} }));
+	check("顶层 null → 空形状", JSON.stringify(readOtcFund(home)) === JSON.stringify({ holdings: {}, navSnapshots: {}, navHistory: {}, order: [] }));
 
 	// ---- 3) 写入 round-trip ----
 	console.log("== 3) writeOtcFund 原子写 ==");

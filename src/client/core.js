@@ -16,6 +16,7 @@ export const API = {
 	longhu: "/api/leekbox/longhu",
 	news: "/api/leekbox/news",
 	watchlist: "/api/leekbox/watchlist",
+	watchlistReorder: "/api/leekbox/watchlist/reorder",
 	minute: "/api/leekbox/minute",
 	alerts: "/api/leekbox/alerts",
 	screener: "/api/leekbox/screener",

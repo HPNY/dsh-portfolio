@@ -3,7 +3,30 @@
 import { createRoot, h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, fmt, fmtAmount, fmtPct, fmtSign, lkbConfirm, notifyFailure, onToast, openOnRow, pushToast, ToastStack, trend, useTradingInterval } from "./core.js";
 import { rowHover } from "./hover-preview.js";
+import { SortableTh, useTableSort } from "./table-sort.js";
+import { mergeSubsetOrder } from "./table-sort-core.js";
 import { StarButton } from "./star.js";
+
+/** 取数值，缺失/非有限一律 null（排序函数据此把该行沉底）。 */
+function numOrNull(v) {
+	if (v === null || v === void 0) return null;
+	const n = Number(v);
+	return Number.isFinite(n) ? n : null;
+}
+
+/** 排序字段 → 中文列名（提示文案用，避免把内部字段名直接展示给用户）。 */
+const SORT_LABELS = {
+	name: "名称",
+	price: "现价",
+	changePct: "涨跌幅",
+	qty: "持仓",
+	cost: "成本",
+	pl: "盈亏",
+	prevClose: "昨收",
+	open: "今开",
+	amount: "成交额",
+	turnoverRate: "换手",
+};
 
 /** Trigger a browser download for an in-memory blob. */
 function downloadBlob(name, blob) {
@@ -399,8 +422,43 @@ export function WatchlistTab({ onOpen, bump }) {
 		reader.readAsText(file, "utf8");
 	};
 	const groups = ["全部", ...Array.from(new Set(items.map((e) => e.group || "默认")))];
-	const shown = group === "全部" ? items : items.filter((e) => (e.group || "默认") === group);
+	const filtered = group === "全部" ? items : items.filter((e) => (e.group || "默认") === group);
 	const byCode = new Map(quotes.map((q) => [q.code, q]));
+	// ── 排序（按列 + 自定义拖拽）────────────────────────────────────────
+	// 字段取值器：缺行情时返回 null（排序函数会把 null 沉底，不参与比较）。
+	const sortGetters = {
+		name: (it) => byCode.get(it.code)?.name || it.name || it.code,
+		price: (it) => numOrNull(byCode.get(it.code)?.price),
+		changePct: (it) => numOrNull(byCode.get(it.code)?.changePct),
+		qty: (it) => numOrNull(it.qty),
+		cost: (it) => numOrNull(it.cost),
+		// 盈亏 = (现价 - 成本) × 股数；缺任一项即 null
+		pl: (it) => {
+			const px = numOrNull(byCode.get(it.code)?.price);
+			const cost = numOrNull(it.cost);
+			const qty = numOrNull(it.qty);
+			return px === null || cost === null || qty === null ? null : (px - cost) * qty;
+		},
+		prevClose: (it) => numOrNull(byCode.get(it.code)?.prevClose),
+		open: (it) => numOrNull(byCode.get(it.code)?.open),
+		amount: (it) => numOrNull(byCode.get(it.code)?.amount),
+		turnoverRate: (it) => numOrNull(byCode.get(it.code)?.turnoverRate),
+	};
+	// 自定义顺序提交：服务端要求**完整** code 集合（少了会 409），但拖拽发生在
+	// 「当前分组」里，拿到的是子集 —— 用 mergeSubsetOrder 合回完整顺序。
+	const commitOrder = useCallback(
+		(subsetCodes) => {
+			const merged = mergeSubsetOrder(items, subsetCodes);
+			api(API.watchlistReorder, { method: "POST", body: { codes: merged } })
+				.then((d) => {
+					if (Array.isArray(d?.watchlist)) setItems(d.watchlist);
+				})
+				.catch((e) => setIoMsg(`保存排序失败：${describeError(e)}`));
+		},
+		[items]
+	);
+	const table = useTableSort(filtered, sortGetters, commitOrder);
+	const shown = table.sorted;
 	/** Persist qty/cost through the add route's update path (server validates). */
 	const savePosition = (it, patch) => {
 		api(API.watchlist + "/add", { method: "POST", body: { code: it.code, ...patch } })
@@ -508,6 +566,14 @@ export function WatchlistTab({ onOpen, bump }) {
 		),
 		posSummary,
 		alertsCard,
+		// 排序提示：按列排序时说明拖拽已禁用（否则用户拖了没反应会以为坏了）。
+		h(
+			"div",
+			{ className: "lkb-sortHint" },
+			table.sortKey === null
+				? "点表头可按列排序；按住行拖动可自定义顺序"
+				: `当前按「${SORT_LABELS[table.sortKey] ?? table.sortKey}」${table.sortDir === "asc" ? "升序" : "降序"}排列，拖拽自定义顺序已暂停；再点表头可取消排序`
+		),
 		h(
 			"table",
 			null,
@@ -517,24 +583,24 @@ export function WatchlistTab({ onOpen, bump }) {
 				h(
 					"tr",
 					null,
-					h("th", null, "名称"),
-					h("th", null, "现价"),
-					h("th", null, "涨跌幅"),
-					h("th", { title: "点击单元格设置持仓数量（股）" }, "持仓"),
-					h("th", { title: "点击单元格设置成本价" }, "成本"),
-					h("th", { title: "浮动盈亏（按现价与成本实时计算）" }, "盈亏"),
-					h("th", { title: "昨日收盘价（涨跌幅的计算基准）" }, "昨收"),
-					h("th", null, "今开"),
+					h(SortableTh, { label: "名称", colKey: "name", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
+					h(SortableTh, { label: "现价", colKey: "price", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
+					h(SortableTh, { label: "涨跌幅", colKey: "changePct", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
+					h(SortableTh, { label: "持仓", colKey: "qty", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按持仓数量排序；点单元格可设置持仓（股）" }),
+					h(SortableTh, { label: "成本", colKey: "cost", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按成本价排序；点单元格可设置成本" }),
+					h(SortableTh, { label: "盈亏", colKey: "pl", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按浮动盈亏排序（按现价与成本实时计算）" }),
+					h(SortableTh, { label: "昨收", colKey: "prevClose", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按昨收价排序（涨跌幅的计算基准）" }),
+					h(SortableTh, { label: "今开", colKey: "open", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
 					h("th", null, "最高/最低"),
-					h("th", null, "成交额"),
-					h("th", null, "换手"),
+					h(SortableTh, { label: "成交额", colKey: "amount", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
+					h(SortableTh, { label: "换手", colKey: "turnoverRate", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
 					h("th", null, "")
 				)
 			),
 			h(
 				"tbody",
 				null,
-				shown.map((it) => {
+				shown.map((it, rowIndex) => {
 					const q = byCode.get(it.code);
 					const hasPos = Number(it.qty) > 0 && Number(it.cost) > 0;
 					const px = q?.price;
@@ -542,7 +608,15 @@ export function WatchlistTab({ onOpen, bump }) {
 					const plPct = hasPos && pl !== null ? (pl / (Number(it.cost) * Number(it.qty))) * 100 : null;
 					return h(
 						"tr",
-						{ key: it.code, onClick: (e) => openOnRow(e, onOpen, it.code, it.name), ...rowHover({ code: it.code, name: q?.name || it.name }) },
+						{
+							key: it.code,
+							onClick: (e) => openOnRow(e, onOpen, it.code, it.name),
+							...rowHover({ code: it.code, name: q?.name || it.name }),
+							// 拖拽排序（按列排序时 table.dragProps 返回 {}，即自动禁用）
+							...table.dragProps(rowIndex),
+							"data-dragging": table.dragging === rowIndex ? "true" : void 0,
+							"data-dragover": table.overIndex === rowIndex ? "true" : void 0,
+						},
 						h("td", null, h("span", { className: "lkb-name" }, q?.name || it.name), h("span", { className: "lkb-code" }, it.code)),
 						h("td", { className: trend(q?.change) }, fmt(q?.price)),
 						h("td", { className: trend(q?.change) }, fmtPct(q?.changePct)),

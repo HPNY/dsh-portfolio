@@ -328,7 +328,7 @@ check(
 	);
 }
 // 成本与份额必须是两列，不能挤在一个单元格里
-check("成本、份额是两个独立表头", src.includes('}, "成本"),') && src.includes('}, "份额"),'));
+check("成本、份额是两个独立表头", /label: "成本", colKey: "costNav"/.test(src) && /label: "份额", colKey: "shares"/.test(src));
 // 两列的修改方式与自选页一致：点单元格 -> .lkb-input，复用 .lkb-posCell 观感
 check(
 	"成本/份额可内联编辑（复用自选页 .lkb-posCell 交互）",
@@ -351,10 +351,10 @@ check(
 );
 // 自选表格的「昨收」列：表头 + 数据单元格都要在，且取的是行情的 prevClose 字段。
 // 注意详情内容里也有"昨收"，但那走的是 item(...) 助手，用 td 写法区分。
-check("自选表格有「昨收」列（行情字段 prevClose）", src.includes('}, "昨收"),') && src.includes('h("td", null, fmt(q?.prevClose))'));
+check("自选表格有「昨收」列（行情字段 prevClose）", /label: "昨收", colKey: "prevClose"/.test(src) && src.includes('h("td", null, fmt(q?.prevClose))'));
 // 列调整：表头「盈亏百分比」简化为「盈亏」；「解套需涨」「解套进度」两列都已删除。
 // 注意 tooltip 里仍会描述"盈亏百分比"这个含义，所以只断言表头写法，不否证整个词。
-check("表头为「盈亏」（且不再有解套需涨 / 解套进度两列）", src.includes('}, "盈亏"),') && !src.includes("解套需涨") && !src.includes("解套进度"));
+check("表头为「盈亏」（且不再有解套需涨 / 解套进度两列）", /label: "盈亏", colKey: "pl"/.test(src) && !src.includes("解套需涨") && !src.includes("解套进度"));
 check("解套进度条相关代码已移除", !src.includes("lkb_fundProgress") && !src.includes("fillPct"));
 // 面板内部图标：这两处都是"静默失效"型 bug —— 样式不生效、图标渲染成空 SVG，
 // 界面上只是看着不对，控制台一声不响，所以必须靠断言兜住。

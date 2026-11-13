@@ -3,6 +3,17 @@
 import { h, useCallback, useEffect, useRef, useState } from "./react.js";
 import { API, api, describeError, fmt, fmtAmount, fmtPct, fmtSign, lkbConfirm, notifyFailure, trend, useInterval } from "./core.js";
 import { rowHover } from "./hover-preview.js";
+import { SortableTh, useTableSort } from "./table-sort.js";
+
+/** 排序字段 → 中文列名（提示文案用，避免把内部字段名直接展示给用户）。 */
+const SORT_LABELS = {
+	name: "基金",
+	nav: "最新净值",
+	dist: "盈亏",
+	costNav: "成本",
+	shares: "份额",
+	pnl: "浮盈",
+};
 
 /** 宽松取数：非有限值一律当"没有"。上游字段可能缺失 / null / 空串，页面不许因此崩。 */
 function num(v) {
@@ -147,6 +158,30 @@ export function OtcFundTab({ active = true, onOpen, bump = 0 }) {
 			.finally(() => setSaving(false));
 	};
 	const funds = data?.funds ?? [];
+	// ── 排序（按列 + 自定义拖拽）────────────────────────────────────────
+	// 基金行的可排序列：名称/最新净值/盈亏/成本/份额/浮盈。缺值一律 null（沉底）。
+	const sortGetters = {
+		name: (f) => f?.name || f?.code || "",
+		nav: (f) => {
+			const estimate = f?.estimateAvailable === true;
+			return estimate ? (num(f?.estimateNav) ?? num(f?.latestNav)) : num(f?.latestNav);
+		},
+		dist: (f) => num(f?.distanceToCostPct),
+		costNav: (f) => num(f?.costNav),
+		shares: (f) => num(f?.shares),
+		pnl: (f) => num(f?.pnl),
+	};
+	// 自定义顺序提交：整份 code 数组（服务端校验集合一致，不一致回 409）。
+	const commitFundOrder = useCallback(
+		(codes) => {
+			mutate({ action: "reorder", codes })
+				.then(() => load())
+				.catch((e) => setMsg(`保存排序失败：${describeError(e)}`));
+		},
+		[mutate, load]
+	);
+	const table = useTableSort(funds, sortGetters, commitFundOrder);
+	const sortedFunds = table.sorted;
 	const summary = data?.summary ?? {};
 	const fundPnl = num(summary.fundTotalPnl);
 	const marketValue = num(summary.fundMarketValue);
@@ -181,18 +216,18 @@ export function OtcFundTab({ active = true, onOpen, bump = 0 }) {
 						h(
 							"tr",
 							null,
-							h("th", null, "基金"),
-							h("th", null, "最新净值"),
-							h("th", { title: "相对成本净值的盈亏百分比（分母是成本净值）" }, "盈亏"),
-							h("th", { title: "成本净值，点单元格可直接改" }, "成本"),
-							h("th", { title: "持有份额，点单元格可直接改" }, "份额"),
-							h("th", { title: "按份额与最新净值计算的浮动盈亏（保留两位小数）" }, "浮盈")
+							h(SortableTh, { label: "基金", colKey: "name", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
+							h(SortableTh, { label: "最新净值", colKey: "nav", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort }),
+							h(SortableTh, { label: "盈亏", colKey: "dist", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按盈亏百分比排序（相对成本净值的盈亏，分母是成本净值）" }),
+							h(SortableTh, { label: "成本", colKey: "costNav", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按成本净值排序；点单元格可直接改" }),
+							h(SortableTh, { label: "份额", colKey: "shares", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按持有份额排序；点单元格可直接改" }),
+							h(SortableTh, { label: "浮盈", colKey: "pnl", sortKey: table.sortKey, sortDir: table.sortDir, onToggle: table.toggleSort, title: "点击按浮动盈亏排序（按份额与最新净值计算）" })
 						)
 					),
 					h(
 						"tbody",
 						null,
-						funds.map((fund) => {
+						sortedFunds.map((fund, rowIndex) => {
 							const code = String(fund.code ?? "");
 							const dist = num(fund.distanceToCostPct);
 							const estimate = fund.estimateAvailable === true;
@@ -201,7 +236,7 @@ export function OtcFundTab({ active = true, onOpen, bump = 0 }) {
 							// 点行打开基金详情浮窗（与自选页点行开详情窗同一套交互）
 							return h(
 								"tr",
-								{ key: code, onClick: () => onOpen(fund), ...rowHover({ kind: "fund", code, name: fund?.name, fund }) },
+								{ key: code, onClick: () => onOpen(fund), ...rowHover({ kind: "fund", code, name: fund?.name, fund }), ...table.dragProps(rowIndex), "data-dragging": table.dragging === rowIndex ? "true" : void 0, "data-dragover": table.overIndex === rowIndex ? "true" : void 0 },
 								h(
 									"td",
 									null,
@@ -251,6 +286,16 @@ export function OtcFundTab({ active = true, onOpen, bump = 0 }) {
 		// 轮询失败时不再清空已有内容：错误条挂在上面，下方仍显示上一份快照（行情类
 		// 页面最忌讳"抖一下就把表格换成一行红字"）。
 		error === "" ? null : h("div", { className: "lkb-error" }, error),
+		// 排序提示：与自选页同一句式的说明（拖拽在按列排序时暂停）。
+		funds.length === 0
+			? null
+			: h(
+					"div",
+					{ className: "lkb-sortHint" },
+					table.sortKey === null
+						? "点表头可按列排序；按住行拖动可自定义顺序"
+						: `当前按「${SORT_LABELS[table.sortKey] ?? table.sortKey}」${table.sortDir === "asc" ? "升序" : "降序"}排列，拖拽自定义顺序已暂停；再点表头可取消排序`
+				),
 		body
 	);
 }
