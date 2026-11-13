@@ -3,6 +3,29 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.2] - 2026-11-13
+
+一次面向"代码与文档都对不上"的收口。代码侧修掉一个**真实的、静默的**缓存缺陷，文档侧把 CHANGELOG 缺的 23 个版本段补齐、并把三份停在旧实现上的文档对齐到现状。
+
+### Fixed
+
+- **`cached()` 漏传 `name` 会让无关的取数链共用同一个缓存实例**：`lib/otc-fund.js` 的 `searchFundSuggest` 与 `fetchFundPositions` 调 `cached({...})` 时都没传 `name`。而 `cached()` 内部是 `registry.get(name) ?? createCache(name, { max })`，`name` 为 `undefined` 时**永远**走 `createCache(undefined)`——于是这两条完全无关的链路共用一个名为 `"undefined"` 的公共缓存：`max` 上限互相挤占、LRU 互相淘汰、命中率统计混在一起，`/api/leekbox/health` 的 `caches` 里只出现一个 `undefined` 键、根本看不出归属。已补 `name: "fundSuggest"` / `name: "fundPositions"`。
+- **从源头加守卫**：`cached()` 入口判断 `typeof name !== "string" || name.trim() === ""` 就抛 `TypeError`（报错带 `key` 便于定位调用方）。用 `trim()` 而非 `=== ""`，因为纯空白 name 在 registry 里同样会成为一个看不出是谁的键。宁可当场炸，也不要静默退化。
+- **指数页最后一处弹窗时代文案**：v0.22.0 已把窗口系统整体退役（改官方面板 + 右栏联动 + 钻取子页），`indices-tab.js` 的「点击指数卡片**可弹出详情窗口**（K线 · 前复权）」是全仓库最后一处用户可见的旧措辞，改为「点击指数卡片**查看详情**（K线 · 前复权）」。
+- **`package-lock.json` 的 `name` 对齐**：改名时只改了 `package.json`，lock 文件顶层与 `packages[""]` 一直是 `dsh-leekbox-plus`。`npm ci` 不校验这个字段，所以从未暴露。
+
+### Changed
+
+- **CHANGELOG 补齐 23 个缺失版本段**（0.15.0–0.21.1）：上游自己就缺（`git show 1d47fb1:CHANGELOG.md` 只到 0.14.0），本 fork 一直延续这个缺口。素材逐个取自各 tag 区间的提交正文。0.20.0 如实注明「由 `cb77557` 直接写定版本号，未打 tag」。
+- **`CONTRIBUTING.md` 整份重写**：标题与包名改现状；补 fork 说明指向 `NOTICE.md` 与 `lib/identity.js`；安装段落改 `%DSH_HOME%\profiles\web\node_modules\dsh-portfolio`；行 id 改 `portfolio`。**删掉一个根本不存在的端点**——原文让贡献者 `curl -X POST http://127.0.0.1:<gui-port>/dsh-market/restart`，代码里从来没有这条路由（`git grep` 只命中本文件与无人引用的上游遗留 `restart-helper.cjs`）。改为如实说明 `lib/*.js` 不会热重载进运行中的 DSH 进程、只刷新浏览器不够、路由会 401/404 且写入静默不落盘。
+- **`docs/otc-fund.md` 补齐到五条路由**：新增 `otc-fund/search`（东财 `FundSearchAPI`，`m=1` 纯 JSON，缓存 5 分钟，只留 `CATEGORYDESC` 含「基金」的行否则股票会被误标，上限 20 条）与 `otc-fund/positions`（前十大重仓股，行情经 `deps.quoteProvider` 注入、港股给 `null` 不编造、取不到 502）；补 `order` 第四键与三条不变式、`action:"reorder"` 错误码表（400/409/501）、详情段从「浮窗」改「右栏联动 + 钻取子页」。
+- **`DELIVERY.md` 标注为 v0.20.0 的交付记录而非当前版本说明**，并逐处补现值：套件数 24 → 26；行 id / bundle 名 / `health` 的 `plugin` 字段改成现值并注明当时旧名；重排重复的 §4 编号。
+
+### Tests
+
+- 新增 `cache-name-test.mjs`（14 项断言）两层兜底：**源码级扫描** `lib/*.js` + `src/client/*.js` + 根目录 `.mjs`（跳过构建产物与测试自身）里每一处 `cached({` 调用，读取顶层 `name` 值要求存在且非空非纯空白（实测 40 个文件 / 18 处调用）；**运行级**真调 `cached()`，无 `name` / 空串 / 纯空白 / 非字符串都抛，且 `routeCacheStats()` 里不得出现 `undefined` 键。
+- 变异验证 4 处全部抓红（删任一 `name` → 各 2 红；改空串 / 纯空白 → 各 1 红）。过程中两次变异漏网又补强：初版只判断 `name` 键**是否存在**而不读值，空串漏网；判 `value === ""` 而非 `trim() === ""`，纯空白漏网。
+
 ## [0.26.1] - 2026-11-13
 
 「拖拽排好的顺序重进页面又复原」的修复。用户报障后排查出两条独立原因：一条是宿主跑着旧服务端代码，一条是客户端**保存失败却装作成功**。
