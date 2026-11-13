@@ -68,7 +68,7 @@ export function IndicesTab({ onOpen }) {
 				);
 			})
 		),
-		h("div", { className: "lkb-status", style: { marginTop: 10 } }, "点击指数卡片可弹出详情窗口（K线 · 前复权）"),
+		h("div", { className: "lkb-status", style: { marginTop: 10 } }, "点击指数卡片查看详情（K线 · 前复权）"),
 		h(SentimentCard, null)
 	);
 }
