@@ -93,6 +93,191 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `client-bundle-test.mjs` 锚点随契约重写：slot 注册断言（main + sidebar.panellist，apply 桩上验证两个 register 真实发出）、DetailRail / SubDetail / escTarget / 持仓卡接线、窗口系统退役否证（setWins/topWindow/mountPanel 不得复活）；`p2-silent-fixes-test.mjs` 的「ESC 关置顶窗口」段改为 escTarget 层级断言。24/24 套件通过，新锚点做过变异验证（改坏必红、还原必绿）。
 
+## [0.21.1] - 2026-11-12
+
+修掉侧栏入口行"不随菜单滚动、单独显示"的挂载位置错误。
+
+### Fixed
+
+- **侧栏入口行挂进面板导航列表**（`src/client/sidebar.js`）：此前用 `cloneNode` 复刻原生行后插在 sidebar 根节点下、`nav.panelList` **外面**（即固定区），于是它不参与菜单组的滚动与选中态。改为插进 `[data-sidebar-scrollport]` 内的 `nav[class*="panelList"]` 作为首个子元素，随菜单整体滚动并归组；清理 `aria-haspopup` / `aria-expanded` / `aria-current` / `aria-describedby` 等从原生行抄来但语义不符的属性。兜底行几何同步到当前 DSH 版本（`min-height:32px`、`padding:5px 9px`、`gap:6px`）。
+
+### Tests
+
+- `client-bundle-test.mjs` 侧栏段重写为新契约，并做变异验证（改坏锚点必红、还原必绿）。
+
+## [0.21.0] - 2026-11-09
+
+版本号在 0.20.0 之后积压了 13 个提交未升，本版一并定版。这一段的主线是**场外基金从"能看"到"能加、能看详情"**，外加一轮 K 线详情的可用性修补。
+
+### Added
+
+- **基金详情浮窗**（`src/client/fund-detail.js`，新增）：点基金行打开，与股票详情同一套窗口 chrome（可拖拽、层级递增、✕ 关闭）。内容：单位净值 / 日涨幅 / 披露状态 / 净值日期、阶段涨幅（近 1·3·6 月、1·3 年、区间以来）、净值走势（可切区间，叠加成本线）、我的持仓、最新披露前十大重仓股（含实时涨跌；港股无行情显示 `—` 不编造）。
+- **添加基金改为「搜索 → 详情 → 加入」**：删除「＋ 添加基金」按钮与 `AddFundForm`；行情页搜索合并东财基金搜索结果，点基金条开详情浮窗，右上「加入基金 / 移出基金」与股票「加自选」同位同形。
+- **K 线周期行对齐雪球**：分时 / 五日 / 日K / 周K / 月K / 季K / 年K / 120分 / 60分 / 30分 / 15分 / 5分 / 1分，共 13 档。语义修正：腾讯 `mkline` 的 `m1` 是**1 分钟 K**而不是分时，此前两者共用 `m1` 一个键；现在分时走独立 `today` 键（`/minute/query`）。
+
+### Changed
+
+- **详情窗开屏即居中**：去掉按固定 620px 估算高度再加 `k*28` 的错开偏移（窗口实际高度随内容浮动，常压出可视区），改为纯居中，并在挂载后按**实际尺寸**夹回视口内（只跑一次，不影响拖动）。`.lkb-win` 高度封顶 `max-height:min(88vh,760px)`。
+
+### Fixed
+
+- **基金持仓「永远取不到」**：根因是 **User-Agent**，不是限流——`fundmobapi.eastmoney.com` 对桌面 Chrome UA 一律返回 `ErrCode 61136403`「网络繁忙」，看起来像接口下线；实测换任意非桌面 UA（移动端 / 裸 `Mozilla/5.0` / 空）都稳定返回 10 条。新增 `MOBILE_UA`（iPhone Safari）显式用于两个 fundmobapi 调用。顺带修掉 `agent: UA` 这个键名写错的地方（`fetch-utils` 只认 `user-agent`，那条"净值兜底源"此前从未生效过）。另修 positions 路由把 `fetchTencentQuotes` 返回的**数组**当 Map 用导致现价/涨跌幅全空。
+- **详情窗底部内容被裁**：flex 子项默认 `min-height:auto`，`.lkb_body` 虽写了 `overflow-y:auto;flex:1` 仍会被内容撑高不肯收缩，父级 `overflow:hidden` 直接裁掉且不出滚动条。`.lkb_body` 加 `min-height:0`、`.lkb-fundBody` 加 `flex:1;min-height:0`。
+- **周期按钮被挤断字**（"分\n时"）：13 档与标题挤在 `space-between` 一行，标题过长就把按钮压到换行。`.lkb-chartTitle` 允许换行、标题超长省略；`.lkb-periodRow` 整体换行并靠右；`.lkb-period` 加 `white-space:nowrap`。
+- **ⓘ 悬停图标在 DSH Desktop 的 webview 里不显示**（原生 `title` 提示不生效），按要求删除图标，标题只留短词（「当日分时」/「K线」/「净值走势」），连同 `.lkb-infoIcon` 样式与 26 条无引用的 CSS 一起清理。
+
+### Tests
+
+- `p1-f10-longhu-test.mjs` **根治日期脆性**：fixture 原钉死在 2026-10-08/09，过期后「不传 date」的用例回溯不到数据、返回 502 假失败，长期挂在 `KNOWN_UPSTREAM_RED` 里。改为按 `cnDateStr()` 相对推算（`shiftDays()` 走 UTC 日历算术，不受宿主机时区影响），并**清空 `KNOWN_UPSTREAM_RED` 名单**（机制保留）。
+- `p2-silent-fixes-test.mjs` **消除时区依赖**：原断言 `new Date(y,m,d,...)` 造本地时间、在 UTC 机器上面日期恰好相等，GitHub Actions（跑在 UTC）必然假失败。改为两条时区无关断言（行为：`todayDateStr` 必须等于本地年月日；实现：产物里不得出现 `toISOString`/`getUTC*`），UTC / Asia/Hong_Kong / America/New_York 三时区实测一致。
+
+## [0.20.0] - 2026-11-03
+
+> 本版由 `cb77557` 直接写定版本号，**未打 tag**。
+
+**整体更名为「持仓看板 / dsh-portfolio」**，并在同一插件内新增**场外基金**子系统——一个插件、一套安装、一个入口，同时覆盖场内（股票 / ETF / 可转债 / LOF）与场外基金。
+
+### Added
+
+- **场外基金模块**（详见 `docs/otc-fund.md`）：`GET /api/leekbox/otc-fund/snapshot`（净值/估值、盈亏百分比、浮盈、成本、份额、距成本线、解套需涨）、`POST /api/leekbox/otc-fund/mutate`（`upsert` / `delete`）。持久化 `$DSH_HOME/.leekbox-otc-fund.json`，原子写 + 写锁。披露窗口分段轮询：18:00–20:00 每 30 分、20:00–23:00 每 5–10 分随机、23:00–01:00 每 15 分、01:00–06:00 每 60 分（跨零点窗口按半开区间逐分钟判定）。
+- 「基金」标签页：表格化，与自选 / 行情页同一套样式；汇总条与自选页同构（市值 / 成本 / 浮动盈亏 / 收益率）；成本与份额点单元格内联编辑。
+- 侧栏图标改为线框柱状图 SVG（`currentColor`，与 DSH 原生图标对齐）。
+
+### Changed
+
+- 汇总口径「不知道就说不知道」：部分持仓取不到净值时给 `null` 而不是部分和，空持仓才是 `0`。
+- 包名 `dsh-portfolio`、显示名「持仓看板」、插件行 id `portfolio`；内部标识（`/api/leekbox/*` 路由前缀、`.leekbox-*.json` 文件名、`lkb_` CSS 前缀）**刻意保留旧名**，理由见 `lib/identity.js`。
+
+## [0.19.5] - 2026-10-28
+
+### Fixed
+
+- **搜索未命中时兜底到东财 suggest**：新增 `emSuggest()` 复用东财 searchadapter 的映射逻辑。`/search` 在本地索引查无结果时补两级兜底——纯字母走腾讯 smartbox 全拼，其余（或仍无结果）走东财 suggest。修掉纯数字代码查询（如新上市创业板 `301479`）在 6 小时索引快照未刷新期间**永远返回空且不走兜底**的问题；冷启动分支改用 `emSuggest` 复用，行为不变。
+
+## [0.19.4] - 2026-10-27
+
+### Changed
+
+- **可发现性优化**（`dc4ac6d`）：README / npm 元数据 / 落地页 / 市场清单做一轮对齐，补齐 `robots.txt` 与 `sitemap.xml`（单页站点，显式声明可抓取），市场清单文案与线上条目对齐（含 tarball、13 信号 / 7 策略）。
+- 版本号此前已随 `chore: bump version to 0.19.4` 先行推进，本段为其余三项文档提交。
+
+## [0.19.3] - 2026-10-23
+
+### Fixed
+
+- **「右上角全天显示休市」**（`lib/calendar.js`）：两个根因叠加。语义错——日历用上证指数日 K 反推交易日，而日线只包含**已经出现过**的交易日（今天那根要到集合竞价前后才有，实测 09:05 没有、09:23 有了），旧实现把「今天的日线还没出」和「今天休市」混为一件事；缓存错——`ensureCalendar` 是 12 小时 TTL，09:05 建好的那份（不含今天）会一直用到当晚 21:05。改法：把「覆盖窗口内缺失」与「右边界之外还不知道」分开，按可信度排序判定（今天有日线 → 交易日；落在已发布序列覆盖窗口内却没有那根 → 确定休市；今天在窗口右侧 → 用 5 分钟线探测今天有没有分时）。
+
+## [0.19.2] - 2026-10-15
+
+### Fixed
+
+- **快讯关联股票标签裸奔**：补齐缺失的 `.lkb-newsStock` 样式（原类名无对应 CSS），改为名称主文案 + 代码胶囊 + 右上跳转箭头，悬停转主色并补深色模式；移除无引用的 `.lkb-stockChip` 死样式。
+
+## [0.19.1] - 2026-10-14
+
+### Changed
+
+- **首轮分析改分节输出并放开篇幅**：「AI 分析内容偏少」的根因不是数据给少了（六路数据已 544 字符），而是输出约束没跟上——「全文 400 字以内」来自最初只有三路数据的版本，数据加到七路后每个维度只剩 60 来字，模型只能各写一句就收尾。改为六个固定小节（价量概况 / 资金面 / 基本面与估值 / 板块与消息 / 风险提示 / 倾向），篇幅 400 → 800–1200 字，缺数据的小节要求明写「该项数据未取到」并说明影响；追问 200 → 400 字。`ANALYSIS_MAX_TOKENS` 2048 → 4096（三协议共用；实测 1202 字输出 = completion_tokens 1730，其中 925 是 reasoning_tokens）。顺带修掉一个结构 bug：六个小节原先与规则放在同一数组一起 `map`，被编成 `2)~7)`，抽出 `renderNumberedRules` 把子列表插在第 1 条之后、不参与编号。
+
+## [0.19.0] - 2026-10-14
+
+### Added
+
+- **分析上下文补数据源**：把早就存在但没接进 prompt 的接口全部并入——主力资金（近 5 日净流入 + 连续方向）、龙虎榜（净买额 / 买卖额 / 上榜原因）、相关新闻（三源合并 + 相关性筛选）、板块环境（本股行业 + 领涨 / 领跌参照）。七路并发、各自降级，任一路失败不阻塞分析。
+- **K 线窗口可配**（3 月 / 半年 / 1 年），窗口透传到服务端；窗口够长时补 MA60 / MA120 / 区间分位——60 根下这些算不出，宁可不给也不给误导性值。切换窗口与生成时不一致会提示需重新生成。
+- **分析支持追问**。
+
+### Changed
+
+- 新闻是外部不可信文本，处理分两层：结构清洗（去控制字符、折叠换行、截断 120 字）+ system prompt 声明其地位。**不做关键词黑名单**——既挡不住真注入，又会误杀正常新闻。
+- 新浪 `ext.stocks` 会误挂标签（一条讲东盟矿物的新闻因正文出现"投资"就挂了某 ETF 代码），改为分级评分 + 阈值 3（名称命中才算数），标签单独出现不采纳。
+
+## [0.18.1] - 2026-10-14
+
+### Changed
+
+- **个股分析改为流式输出**：点「开始分析」走 SSE，服务端新增 `/analysis/analyze/stream`，`llmStream` 用 `curl -N` 实时读 LLM 增量并经 SSE 转发，前端 `fetch` 流式读取逐字追加。支持 OpenAI chat / OpenAI Responses / Anthropic 三种协议的流式增量解析。
+
+## [0.18.0] - 2026-10-14
+
+### Added
+
+- **全局设置新增主题**：跟随系统 / 浅色 / 深色三档，与 AI 模型配置分区。持久化在 `localStorage`（键 `leekbox-theme`），切换 `body` 的 `data-ds-dark-theme` 属性即时生效；`system` 模式下监听系统主题变化。
+
+## [0.17.5] - 2026-10-14
+
+### Added
+
+- **协议新增 OpenAI Responses API**（`/v1/responses`）：system 合并为 `instructions`、user 合并为 `input`，输出解析 `output` 里 message 的 `output_text` 块。服务端 `callResponses` + `normApi` 三协议归一化（`openai` / `responses` / `anthropic`）。
+
+## [0.17.4] - 2026-10-14
+
+### Added
+
+- **全局设置新增「API 协议」下拉**：OpenAI 兼容（`/chat/completions`）或 Anthropic 原生（`/v1/messages`）。切服务商时自动填，但可手动改（例如自定义地址 + Anthropic 协议）。
+
+## [0.17.3] - 2026-10-14
+
+### Fixed
+
+- **「获取模型」永远卡在「获取中」**：`settings.js` 里协议 state 变量名 `api` **遮蔽**了从 `core.js` 导入的 `api()` 请求函数，`fetchModels` 里 `api(...)` 实际调用的是字符串、同步抛 `TypeError`，而 `.finally(setFetching(false))` 永不执行，按钮永远转圈。改名 `protocol`。另加双保险：前端 `api()` 加 120s 超时（`AbortController`），服务端 `llmHttp` 加 Node 侧兜底强杀挂起的 `curl`。
+
+## [0.17.2] - 2026-10-14
+
+### Fixed
+
+- **LLM 请求改走系统 `curl` 绕过 TLS 指纹拦截**：部分第三方聚合网关（nginx 反代 + WAF）按 TLS 指纹拦截 Node/OpenSSL 连接（直接 `ECONNRESET`），却放行 `curl` 的 Schannel TLS，导致「获取模型」与个股分析对这类网关完全不可用。新增 `llmHttp`：经 `spawn curl.exe` 发出（`-w` 取状态码、`--data-binary @-` 走 stdin），`callOpenai` / `callAnthropic` / `listLlmModels` 全部改用。
+
+## [0.17.1] - 2026-10-14
+
+### Added
+
+- **兼容 Anthropic Claude 原生协议**：服务端 `callLlm` 拆分为 `callOpenai` + `callAnthropic`（走 `/v1/messages` + `x-api-key` + `anthropic-version`，`system` 单独提出、`content` 多个 text 块拼接），`listLlmModels` 同步支持 `/v1/models`。配置增加 `api` 字段（`openai` | `anthropic`，旧配置默认 `openai` 向后兼容）。
+
+## [0.17.0] - 2026-10-13
+
+### Added
+
+- **模型多服务商下拉 + 动态获取模型列表**：设置弹窗改为「服务商下拉 → 自动填 API 地址 → 模型下拉（`datalist` 可下拉可手填）→ 一键获取模型」。覆盖 DeepSeek / OpenAI / Kimi / 智谱 / 通义 / b.ai 等 OpenAI 兼容服务商，不是只能 OpenAI 一家。服务端新增 `POST /api/leekbox/analysis/models`：调 `GET {baseUrl}/models` 拉真实模型列表（去重、上限 200、超时与错误转中文文案）。
+
+## [0.16.2] - 2026-10-13
+
+### Changed
+
+- **模型配置从「分析」页签拆到全局设置**：新增 `settings.js` 全局设置弹窗；`core.js` 加订阅式配置单例（`loadAnalysisConfig` / `saveAnalysisConfig` / `useAnalysisConfig`），面板与分析页共享同一份状态。面板头部新增 ⚙️ 入口，设置弹窗 z 序高于详情窗、低于确认遮罩与 toast。分析页移除配置卡片，只留选股分析；未配置时「开始分析」变为「去配置模型」。
+
+## [0.16.1] - 2026-10-13
+
+### Added
+
+- **分析结果支持「复制」与「重新生成」**：复制走 clipboard API + `execCommand` 兜底。
+
+## [0.16.0] - 2026-10-13
+
+### Added
+
+- **新增「分析」页签**：可配置 OpenAI 兼容模型（API 地址 / 密钥 / 模型名），选股后用服务端汇总的行情 / K 线 / 财报数据调用模型生成个股分析。服务端新增 `/api/leekbox/analysis/config`（GET 读 / POST 存，密钥脱敏）与 `/api/leekbox/analysis/analyze`（汇总个股数据并调模型）。配置持久化到 `.leekbox-analysis.json`，密钥明文只在服务端落盘、绝不下发。
+
+## [0.15.2] - 2026-10-13
+
+### Fixed
+
+- **K 线详情弹窗层级**：详情窗置顶于主面板卡片之上（此前被卡片盖住）。
+
+## [0.15.1] - 2026-10-13
+
+仅版本号推进（无功能改动）。
+
+## [0.15.0] - 2026-10-13
+
+### Added
+
+- **量化因子选股**：新增 35 个量化因子（26 个布尔因子 + 9 个数值因子）、7 个因子分组（价格位置 / 动量指标 / 波动率 / 成交量 / 形态识别 / TD 序列 / VWAP）、5 个预设组合（趋势跟踪 / 超卖反弹 / 突破形态 / 均值回归 / 强势动量）。新增技术指标 ATR、TD 序列、蜡烛形态识别、VWAP。前端新增「量化因子」选股模式（因子选择 + 预设组合），后端筛选引擎支持 `factor` 模式（因子匹配与评分）。
+
+### Fixed
+
+- 因子模式参数验证：`factorPresets` 改用 `FACTOR_PRESETS` 而非 `FACTOR_META`；新增 `factorRequire` 校验确保单因子 key 有效。
+
 ## [0.14.0] - 2026-10-11
 
 ### Added

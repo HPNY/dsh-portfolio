@@ -2,7 +2,8 @@
 
 > 本文档是 `dsh-portfolio`（持仓看板）新增子系统的**实现契约**：数据源实测结论、持久化格式、
 > HTTP 接口、轮询窗口、指标口径，以及与原始方案不一致的地方（含原因）。
-> 代码：`lib/otc-fund.js`、`lib/otc-fund-store.js`、`lib/otc-fund-poller.js`、`src/client/otc-fund-tab.js`。
+> 代码：`lib/otc-fund.js`、`lib/otc-fund-store.js`、`lib/otc-fund-poller.js`、
+> `src/client/otc-fund-tab.js`、`src/client/fund-detail.js`。
 
 ---
 
@@ -92,6 +93,7 @@ pingzhongdata 不可用时，用 App 接口的官方净值（`DWJZ` / `PDATE`）
       "lateDisclosure": false
     }
   },
+  "order": ["161616"],
   "navSnapshots": {
     "161616": {
       "latestNav": 1.606,
@@ -111,8 +113,18 @@ pingzhongdata 不可用时，用 App 接口的官方净值（`DWJZ` / `PDATE`）
 | 字段 | 作用 |
 |---|---|
 | `holdings` | 用户持仓；`shares` 份额、`costNav` 成本净值、`lateDisclosure` 迟到披露标记 |
+| `order` | 用户拖拽出的自定义顺序（代码数组）。**不能省掉、不能用 `holdings` 的键序代替**——`holdings` 是字典，`Object.keys()` 对 `"161616"` 这类整数样式键按**数值升序**返回，而不是插入顺序，靠它保存拖拽结果会静默错乱 |
 | `navSnapshots` | 轮询器最近一次拉到的净值/估值快照。**当前只写不读**（见下） |
 | `navHistory` | 只追加的历史净值点，键为 `{code}:{date}`，**天然幂等**（同日重复写不产生重复行） |
+
+`order` 的三条不变式（读时归一，见 `normalizeOtcFund`）：
+
+1. 只保留 `holdings` 里真实存在的代码（删掉的基金从顺序里摘掉）；
+2. 去重；
+3. `upsert` 新代码追加到**末尾**、`delete` 从顺序里摘除 —— 都不打乱已有相对顺序。
+
+snapshot 的 `codes` 排序：先按 `order` 里出现过的（且仍在持仓里的）排，剩下没被列进
+`order` 的持仓按原顺序补齐在后面 —— **绝不丢行**。
 
 > **`navSnapshots` 目前是只写不读的**：snapshot 端点每次走实时取数链（带缓存与单飞），
 > 并不回读这个字段。它的存在价值是留一份**持久化的"最后已知净值"**，便于事后排查、
@@ -127,8 +139,9 @@ pingzhongdata 不可用时，用 App 接口的官方净值（`DWJZ` / `PDATE`）
 
 ## 3. HTTP 接口
 
-两条路由挂载在 dsh-leekbox 既有的 `/api/leekbox/*` 命名空间下，**复用同一套本机信任围栏**
+五条路由挂载在 `/api/leekbox/*` 命名空间下，**复用同一套本机信任围栏**
 （loopback 地址 + Host 同源 + Origin 本机 + JSON content-type），不自建 `http.Server`。
+路由常量集中在 `lib/otc-fund.js` 的 `FUND_ROUTES`，由 `lib/index.js` 展开进 `ROUTES` 总表。
 
 ### 3.1 `GET /api/leekbox/otc-fund/snapshot`
 
@@ -206,6 +219,7 @@ pingzhongdata 不可用时，用 App 接口的官方净值（`DWJZ` / `PDATE`）
 ```json
 { "action": "upsert", "code": "161616", "name": "融通医疗", "shares": 10838.90, "costNav": 1.9513 }
 { "action": "delete", "code": "161616" }
+{ "action": "reorder", "codes": ["005827", "161616"] }
 ```
 
 - 需要 `content-type: application/json`（跨站表单发不出该类型，这道锁挡 CSRF）。
@@ -213,10 +227,26 @@ pingzhongdata 不可用时，用 App 接口的官方净值（`DWJZ` / `PDATE`）
 - 返回 `{"ok":true}`；失败返回 `{"ok":false,"error":"<中文>"}`。
 - 校验：`shares` 有限且 `0 ≤ shares ≤ 1e10`；`costNav` 有限且 `> 0`（上限 `1e7`）；
   `name` 截断到 40 字。非法输入 400，不静默吞掉。
+- `upsert` 的新代码追加到 `order` **末尾**，不打乱用户已排好的顺序。
+
+#### `action: "reorder"` —— 自定义排序
+
+`reorder` 在 `code` 校验**之前**分叉（它不针对单只基金），提交的是**整份顺序**而不是
+"把某只移到某只前后"：客户端已持有完整列表，整份提交幂等，重试 / 并发 / 拖拽中断都
+不会留下半截顺序。
+
+| 情形 | 状态码 | 说明 |
+|---|---|---|
+| `codes` 不是数组 | 400 | 排序请求需要 `codes` 数组 |
+| 有重复项 | 400 | 顺序里不能有重复代码 |
+| 长度与当前持仓数不一致，或含不存在的代码 | 409 | 「基金持仓已变化，请刷新后重试」——不静默只排一部分 |
+| 存储层没有 `reorderHoldings` | 501 | 旧存储模块降级保护 |
+
+成功返回 `{"ok":true}`；顺序写在持仓文件的 `order` 键里（见 §2）。
 
 ### 3.3 `GET /api/leekbox/otc-fund/history`
 
-详情浮窗的数据源：一只基金的**历史净值** + **阶段涨幅**。
+详情页的数据源：一只基金的**历史净值** + **阶段涨幅**。
 
 ```json
 {
@@ -238,16 +268,56 @@ pingzhongdata 不可用时，用 App 接口的官方净值（`DWJZ` / `PDATE`）
 - 每一项是**相对 N 天前净值的涨幅（%）**，与逐行盈亏同口径；历史不足该区间时给 `null`
   而不是 `0`（同「不知道就说不知道」）。
 - `navHistory` 为升序 `{date, nav}`，最多保留最近 **3000** 个点（约 12 年），足够算「近 3 年 / 区间以来」。
-- 该接口只在打开详情浮窗时按需拉取，不进 30 秒轮询；档案本身走 `otcFundProfile` 缓存。
+- 该接口只在打开基金详情（右栏或钻取子页）时按需拉取，不进 30 秒轮询；档案本身走
+  `otcFundProfile` 缓存。
+- 响应除上表字段外还带 `tracked`（该基金是否在持仓里）与 `fund`（持仓行的完整快照，
+  口径与 snapshot 的 `funds[i]` 一致）。份额 / 成本必须从**持仓文件**读，不能信调用方
+  传进来的参数：从行情页搜索打开时只有 `{code, name}`，靠它算会让「我的持仓」整片显示 `—`。
 
-### 3.4 错误码
+### 3.4 `GET /api/leekbox/otc-fund/search`
+
+行情页搜索框查场外基金用。`?q=<代码|名称|拼音首字母>`，空 `q` 直接返回 `{"results":[]}`。
+
+```json
+{ "results": [ { "code": "161616", "name": "融通医疗保健行业混合A/B", "type": "混合型-偏股" } ] }
+```
+
+- 源为东财 `FundSearchAPI`（`m=1` 返回纯 JSON，不带 JSONP 回调），缓存 5 分钟。
+- 该接口对拼音/代码也会返回**股票**（`CATEGORYDESC` 形如「沪市」/「深市」），这里只留
+  `CATEGORYDESC` 含「基金」的行，否则股票会被误标成基金。
+- 单次最多 20 条。
+
+### 3.5 `GET /api/leekbox/otc-fund/positions`
+
+基金详情页的「最新披露前十大重仓股」。`?code=161616`。
+
+```json
+{
+  "code": "161616",
+  "positions": [
+    { "code": "600276", "name": "恒瑞医药", "weight": 8.12, "changeType": "增持",
+      "changeVsPrev": 0.34, "exchange": "sh", "price": 52.3, "changePct": 1.24 }
+  ],
+  "updatedAt": "2026-11-04T14:02:11+08:00"
+}
+```
+
+- 持仓数据属基金侧，但实时价格来自行情源 —— 行情经 `deps.quoteProvider` 注入，
+  本模块不直接抓行情，保持「这里只做场外基金数据」的边界。
+- 实时涨跌只对 A 股有意义：港股不在 A 股行情链路里，`price` / `changePct` 给 `null`
+  而不编造数值。
+- 取不到持仓返回 502，不让整页失败。
+
+### 3.6 错误码
 
 | 码 | 含义 |
 |---|---|
-| 400 | 参数非法（代码非 6 位数字 / 份额成本越界 / JSON 损坏 / 不支持的 action） |
+| 400 | 参数非法（代码非 6 位数字 / 份额成本越界 / JSON 损坏 / 不支持的 action / `reorder` 的 `codes` 不是数组或有重复项） |
 | 403 | 非本机请求，或写请求来自其他站点 |
 | 405 | 方法不支持 |
+| 409 | `reorder` 提交的顺序与当前持仓集合不一致（持仓已变化，请刷新后重试） |
 | 415 | 写请求不是 `application/json` |
+| 501 | 存储模块不支持 `reorder`（旧版本降级保护） |
 | 502 | 上游取数失败或落盘失败（`error` 为中文文案，`reason` 为技术细节） |
 
 ---
@@ -337,13 +407,21 @@ pnl              = shares * (nav - costNav)                （不舍入）
   盈亏百分比（`distanceToCostPct`）、成本、份额、浮盈；
   `stale:true` 显示「数据未更新」。
 - 成本 / 份额两列可**点单元格内联编辑**（与自选页持仓、成本列同一套交互）→ `POST mutate`。
-- **点基金行 → 打开基金详情浮窗**（与自选点行开详情窗同一套窗口 chrome：可拖拽、层级递增、✕ 关闭）：
+- **点基金行 → 右栏联动详情**（页面化后没有浮窗：右栏常驻详情 + ⤢ 钻取子页）：
   单位净值 / 日涨幅、**阶段涨幅**（近 1 月 / 3 月 / 6 月 / 1 年 / 3 年 / 区间以来）、
   净值走势（可切区间，叠加**成本线**）、我的持仓（份额 / 成本 / 市值 / 浮盈 / 盈亏比例）、
-  底部**删除持仓**。旧的行内编辑表单已彻底删除。
+  底部**删除持仓**。旧的行内编辑表单已彻底删除。右栏档位收敛周期，完整版（钻取子页）
+  另加**阶段涨幅**与**最新披露前十大重仓股**。
+- **点表头按列排序**：基金名 / 最新净值 / 盈亏 / 成本 / 份额 / 浮盈 六列，三态
+  （升 → 降 → 取消），输出 `aria-sort` 与 ▲/▼/⇅ 箭头，表头可聚焦并支持 Enter / 空格。
+- **拖拽行自定义顺序**：顺序整份提交到 `action:"reorder"`，持久化在 `order` 键。
+  **按列排序期间拖拽停用**（否则"看到的顺序"与"存下的顺序"会打架），提示条写明原因。
+  保存失败时回退本地顺序并提示，不让界面显示一个没存进去的顺序。
 - 顶部汇总条：市值 / 成本 / 浮动盈亏 / 收益率（与自选页同构）；只在「基金」
   标签页显示，不反向修改自选标签页。
 - 标签页活跃时每 30 秒拉一次 snapshot（读 Host 缓存，成本低）；不活跃时不建表。
+- 鼠标悬停在行上出现轻量预览浮窗（`src/client/hover-preview.js`，与自选/行情/选股/大盘
+  五个列表同一套）。
 
 ---
 
@@ -357,6 +435,8 @@ pnl              = shares * (nav - costNav)                （不舍入）
 | `lateDisclosure` 在 23:00–01:00 额外轮询 | 所有窗口轮询全部持仓；`lateDisclosure` 仅收紧 `night` 窗口节奏 | 原写法会让未标记基金在 23:00 后静默停止轮询 |
 | 未规定缺失数据的表示 | 缺失一律 `null`，绝不填 0 | 与上游 README「绝不返回假的 0/0」一致 |
 | 净值历史仅用于 P1 曲线 | 存储层只追加 `{date, nav}`，端点不返回全量历史 | 保持 snapshot payload 精简；曲线数据由客户端按需扩展 |
+| 未规定自定义排序的存储方式 | 持仓文件新增 `order` 键（代码数组），**不用 `holdings` 的字典键序** | 整数样式键（`"161616"`）在 `Object.keys()` 里按数值升序返回，靠字典顺序保存拖拽结果会静默错乱 |
+| 未规定排序提交粒度 | 整份顺序提交（`codes` 数组），集合不一致回 409 | 客户端已持完整列表，整份提交幂等，重试/并发/拖拽中断都不留半截顺序 |
 
 ---
 
@@ -364,10 +444,11 @@ pnl              = shares * (nav - costNav)                （不舍入）
 
 | 套件 | 覆盖 |
 |---|---|
-| `otc-fund-test.mjs` | pingzhongdata 解析（BOM、括号配平、时区、脏点过滤）、估值链与熔断、净值兜底、指标口径、两条路由的契约/鉴权/降级、缓存与单飞 |
-| `otc-fund-store-test.mjs` | 文件读写、原子替换、畸形容忍、并发不丢更新、幂等追加 |
+| `otc-fund-test.mjs` | pingzhongdata 解析（BOM、括号配平、时区、脏点过滤）、估值链与熔断、净值兜底、指标口径、路由契约/鉴权/降级、缓存与单飞 |
+| `otc-fund-store-test.mjs` | 文件读写、原子替换、畸形容忍、并发不丢更新、幂等追加、`order` 累积/摘除/过滤与 `reorderHoldings` 的四种拒绝 |
 | `otc-fund-poller-test.mjs` | 五窗口边界、**跨零点逐分钟扫描**、`lateDisclosure` 节奏、dispose 清理、失败不中断 |
+| `sort-test.mjs` | 纯函数（三态排序、空值沉底、稳定排序、`moveItem`、`mergeSubsetOrder`）、真调 reorder 路由（409/400/落盘）、真调 store 的 `order` 语义、渲染级断言（`aria-sort` / 箭头 / 键盘） |
 | `client-bundle-test.mjs` | 产物 id / React external / 模块导入导出配对（已随重命名更新） |
 
-三个新套件均为**离线**（网络由 fetch 桩接管），不依赖东财当日是否可用；
+三个基金套件均为**离线**（网络由 fetch 桩接管），不依赖东财当日是否可用；
 `OTC_FUND_LIVE=1` 可额外跑一次真连冒烟。

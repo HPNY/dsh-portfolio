@@ -1,7 +1,13 @@
 # 交付说明（DELIVERY）
 
-**插件**：`dsh-portfolio`（持仓看板）v0.20.0 —— 一个插件、一套安装、一个入口，
+**插件**：`dsh-portfolio`（持仓看板）—— 一个插件、一套安装、一个入口，
 同时覆盖**场内**（股票 / ETF / 可转债 / LOF）与**场外基金**。
+
+> **本文件是 v0.20.0「场外基金模块上线」的交付记录，不是当前版本的说明。**
+> 当前版本见 `package.json`（v0.26.1）与 [CHANGELOG.md](CHANGELOG.md)。
+> 文中凡是标注了「实测于 2026-11-03」的数值与运行状态，都是当时的现场快照；
+> 插件标识（行 id、bundle 名、health 中的 `plugin` 字段）与测试套件数量此后已变，
+> 已在正文中逐处标注现值。后续版本（页面化、浮窗、悬停预览、响应式、排序）不在本文件范围内。
 
 - 上游：`SuCriss/dsh-leekbox` @ `1d47fb1`（MIT），见 [NOTICE.md](NOTICE.md)
 - 基金子系统契约：[docs/otc-fund.md](docs/otc-fund.md)
@@ -9,6 +15,8 @@
 - 注：仓库根目录的 `SUMMARY.md` 是**上游**关于「量化因子选股」的既有文档，未改动。
 
 ---
+
+以下表格是**交付当时（v0.20.0，2026-11-03）**的验收记录，保留原样以便追溯。
 
 ## 1. 达成情况
 
@@ -23,7 +31,7 @@
 | 「基金」标签页（列表 / 距成本线 / 解套进度条 / 内联编辑 / 净值曲线叠成本线 / 汇总条） | ✅ | 构建产物含全部组件；样式与上游红涨绿跌一致 |
 | **一个插件、一套安装**（不拆两个插件） | ✅ | 单行注册 `portfolio`（包名 `dsh-portfolio`），单入口（内联线框柱状图 SVG） |
 | 不做跨插件 JSON 读取 / 不用 storage-domain / 无弹窗告警 | ✅ | 股票与基金在同一 Host 内直接合并，无跨插件调用 |
-| 浏览器视觉确认 | ⚠️ 见 §5 | GUI 需登录态，本轮以路由 + 产物为准 |
+| 浏览器视觉确认 | ⚠️ 见 §7 | GUI 需登录态，本轮以路由 + 产物为准 |
 
 ## 2. 真实数据实测（用户的四只基金）
 
@@ -55,6 +63,11 @@
 `npm test` → **24 个套件全部执行**，23 通过、0 失败、1 个已知上游缺陷（不计入失败），
 退出码 **0**。
 
+> **这段是 v0.20.0 当时的快照。** 现状：套件已增至 **26 个**，且那个"唯一失败"
+> 的 `p1-f10-longhu-test.mjs` 已在 v0.21.0（`7f93b5f`）改成按 `cnDateStr()` 相对推算日期，
+> **彻底修好**，`KNOWN_UPSTREAM_RED` 名单已清空（机制保留）。所以现在 `npm test`
+> 是 26 个套件全绿、零豁免。详见 §3 末与 [CHANGELOG.md](CHANGELOG.md) 的 0.21.0 段。
+
 ### 关于 `npm test` 的一个真实修复
 
 原 `package.json` 把套件用 `&&` 串起来，于是「一旦某个套件失败，后面全部不执行」。
@@ -67,6 +80,8 @@
 单个失败不阻断其余套件，最后统一给结论；已知上游缺陷单列且不计入退出码。
 
 ### 唯一失败：`p1-f10-longhu-test.mjs`（上游既存，与本改造无关）
+
+> **后续已修复**（v0.21.0，`7f93b5f`）：fixture 改为按 `cnDateStr()` 相对推算（`shiftDays()` 走 UTC 日历算术，不受宿主机时区影响），不再随真实日期过期。下列排查过程保留作历史记录。
 
 独立验证者用两种方式证明它**不是本次引入**的：
 1. `git clone` 上游 `1d47fb1` 到干净目录（零工作区改动）→ 同一行同样失败；
@@ -89,7 +104,7 @@
 | `isJsonContentType` 用 `includes()`，放行 `text/plain; x=application/json`、`application/jsonx` | 改为精确比较第一个 `;` 之前的媒体类型 |
 | `costNav=0`（仅手改文件可达）会算出 `neededRisePct = -100` | 增加 `costNav > 0` 硬条件 |
 | `navSnapshots` 只写不读，而文档声称"供 snapshot 端点读取" | 已改正文档（见 `docs/otc-fund.md`），说明它是持久化的"最后已知净值"、当前不参与读路径 |
-| **契约漂移**：运行中的宿主仍是改动前的 13 键行 | 已通过重挂载（`include:leekbox-plus` 禁用后重新启用）让宿主加载新模块，实测现为 **16 键** |
+| **契约漂移**：运行中的宿主仍是改动前的 13 键行 | 已通过重挂载让宿主加载新模块，实测现为 **16 键**（当时的行 id 是 `leekbox-plus`，v0.20.0 起已改为 `portfolio`） |
 
 它同时**逐一验证并确认正确**的点：`neededRisePct` 与 `distanceToCostPct` 确实是两个不同的数
 （恒等式 `neededRise = -d/(1+d/100)` 成立）；逐行 `marketValue`/`pnl` 不四舍五入而汇总舍入到分；
@@ -100,14 +115,20 @@
 名称/净值/日期与原始文件逐字一致，400 点尾部与原始序列**逐字节相同**；
 11 种场景的假定时器测试证明 dispose 后**零存活定时器**、100 次创建/销毁循环零泄漏。
 
-## 5. 上线状态（实测）
+## 5. 上线状态（实测于 2026-11-03）
 
-插件已装入 `desktop` profile，注册为 bundle `dsh-leekbox-plus`、行 `leekbox-plus`
-（`enabled: true`，`installed: true`，`source: link:...\dsh-leekbox-plus`）。
+插件已装入 `desktop` profile，注册为 bundle `dsh-portfolio`、行 `portfolio`
+（`enabled: true`，`installed: true`，`source: link:...\dsh-leekbox-plus` —— 目录名沿用旧名，包名已是 `dsh-portfolio`）。
+
+> 交付当时注册名还是 `leekbox-plus` / `dsh-leekbox-plus`，v0.20.0 随整体更名一并改掉。
+> 现状核对（README「常见问题」与 v0.26.1 排查结论）：行 id 为 `portfolio`、
+> 包名 `dsh-portfolio`、`/api/leekbox/health` 的 `plugin` 字段为 `dsh-portfolio`。
+> 注意 `lib/*.js` 的改动**不会热重载**进运行中的 DSH 进程，改了服务端代码必须重启
+> 宿主或让 profile 重新组合，否则路由会 401/404 且写入静默不落盘。
 
 实测（重挂载后，运行中的宿主）：
 
-- `/api/leekbox/health` → `plugin: "leekbox-plus"`、`version: "0.20.0"`，
+- `/api/leekbox/health` → `plugin: "leekbox-plus"`（现为 `dsh-portfolio`）、`version: "0.20.0"`（现为 `0.26.1`），
   并已出现 `otcFundGzList` / `otcFundMob` / `otcFundProfile` 三个缓存计数（证明新模块确实加载）。
 - snapshot 行 **16 键**，`neededRisePct: 21.5`、`marketValue: 17407.273400000002`（未舍入）、
   `pnl: -3742.6721699999994`（未舍入），`summary` 舍入到分。
@@ -115,7 +136,7 @@
 - `POST mutate` 往返成功；跨站 Origin → 403；非 JSON → 415；方法错 → 405。
 
 
-## 4. 过程中修正的真实缺陷
+## 6. 过程中修正的真实缺陷
 
 1. **方案指定的数据源已全部失效**：`fundgz.1234567.com.cn` 对所有代码返回东财 404
    页面；`F10DataApi.aspx?type=lsjz` 返回空 `var apidata=`；`fund.eastmoney.com/{code}.html`
@@ -130,42 +151,44 @@
 5. **界面死分支**：客户端渲染逐行浮盈读 `fund.pnl`，而宿主此前未返回该字段
    —— 永远渲染不出东西且不报错。已补 `pnl` / `marketValue`。
 
-## 6. 尚未验证的部分（如实说明）
+## 7. 尚未验证的部分（如实说明）
 
-- **浏览器端视觉未截图确认**：DSH Web GUI 根路径需登录态（`401`），本轮（以及独立
+- **浏览器端视觉未截图确认**（仅限交付当时）：DSH Web GUI 根路径需登录态（`401`），本轮（以及独立
   验证者）都无法在无凭据情况下取得页面。已确认的是：两条路由在真实服务上工作、
   `lib/client.js` 产物包含 `OtcFundTab` / `基金` / `成本线` / `已解套` /
   `解套需涨` 等全部代码路径、构建与 `node --check` 通过、`client-bundle-test` 通过。
-  **建议打开 GUI 后亲眼确认一次布局。**
+  > **后续已补**：v0.22.0 起页面化后，界面已由用户在实际 GUI 中反复验证并提缺陷
+  > （v0.21.1 入口滚动、v0.23.0 入口点不开、v0.25.0 响应式、v0.26.1 排序保存），
+  > 设计稿与响应式断点另用 Playwright 截图核验，见 `portfolio-page-design/`。
 - **盘中估值当日不可用**：2026-11-03 盘中采样（09:22 / 09:36）东财估值榜均返回
   「暂无数据」，即当日全市场未发布估值。界面此时按设计显示「已披露 + 净值日期」，
   降级路径已验证；「估值」徽标的成功路径待有估值的交易日再确认。
 - **`refreshTimeoutMs: 0` + refresh 永久挂起**会让该轮轮询链停住（无泄漏，且只有显式
   配置为 0 才会发生；默认 60000 不受影响）。属已知边界，未改。
-- `p1-f10-longhu-test.mjs` 见 §3，属上游既存问题。
+- `p1-f10-longhu-test.mjs` 见 §3，属上游既存问题（**v0.21.0 已修复**）。
 
-## 7. 如何回滚
+## 8. 如何回滚
 
-禁用插件行即可（`include:leekbox-plus`），或直接从 profile 移除 bundle `dsh-leekbox-plus`。
+禁用插件行即可（行 id `portfolio`；交付当时叫 `leekbox-plus`），或直接从 profile 移除 bundle `dsh-portfolio`（交付当时叫 `dsh-leekbox-plus`）。
 
 数据互不影响：`$DSH_HOME/.leekbox-otc-fund.json` 独立于持仓文件，
 删掉它等于清空场外基金持仓，不会波及自选股 / 预警 / 分析配置。
 
-## 8. 交付物清单
+## 9. 交付物清单
 
 | 文件 | 说明 |
 |---|---|
-| `lib/otc-fund.js` | 数据层：pingzhongdata 解析、估值降级链、指标计算、两条路由 |
+| `lib/otc-fund.js` | 数据层：pingzhongdata 解析、估值降级链、指标计算、`FUND_ROUTES`（现为 5 条：snapshot / mutate / history / search / positions） |
 | `lib/otc-fund-store.js` | `.leekbox-otc-fund.json` 持久化（原子替换 + 写锁） |
 | `lib/otc-fund-poller.js` | 披露窗口分段轮询（跨零点窗口、`lateDisclosure` 节奏） |
-| `src/client/otc-fund-tab.js` | 「基金」标签页 UI |
-| `lib/index.js` | 挂载两条路由、展开 `FUND_ROUTES`、启动/清理轮询器 |
+| `src/client/otc-fund-tab.js` | 「基金」标签页 UI（v0.26.0 起含按列排序与拖拽自定义顺序） |
+| `lib/index.js` | 挂载基金路由、展开 `FUND_ROUTES`、启动/清理轮询器 |
 | `run-tests.mjs` | 测试总入口（保证每个套件都执行） |
 | `otc-fund-test.mjs` / `-store-` / `-poller-` | 53 / 50 / 33 项断言 |
 | `docs/otc-fund.md` | 子系统契约（数据源实测、持久化格式、接口、窗口、指标口径、偏差） |
 | `NOTICE.md` | 上游归属与完整改动清单 |
-| `README.md` | 新增「基金」标签页说明 |
-| `DELIVERY.md` | 本文件 |
+| `README.md` | 「基金」标签页说明（v0.26.1 已整体重写，对齐当前实现） |
+| `DELIVERY.md` | 本文件（v0.20.0 交付记录） |
 
 > 仓库根目录的 `SUMMARY.md` 是**上游**关于「量化因子选股」的既有文档，本次未改动。
 
