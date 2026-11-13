@@ -8,3 +8,6 @@ node_modules/
 
 # local agent workspace
 .workbuddy-ai/
+
+# 一次性验收用的基准页（不是产物的一部分）
+.bench-tabs/

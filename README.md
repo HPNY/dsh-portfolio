@@ -278,7 +278,7 @@ ln -s "<本包路径>" "$DSH_HOME/profiles/web/node_modules/dsh-portfolio"
 
 ### 测试
 
-25 个测试套件（24 个 `*-test.mjs` + `verify-fixes.mjs`），由 `run-tests.mjs` **串行跑完全部**——单个套件失败不会静默跳过其余套件，最后统一给结论与失败清单。CI 分四个 job：语法检查、客户端产物重建后 `git diff` 必须为空、单测、manifest 校验。
+26 个测试套件（25 个 `*-test.mjs` + `verify-fixes.mjs`），由 `run-tests.mjs` **串行跑完全部**——单个套件失败不会静默跳过其余套件，最后统一给结论与失败清单。CI 分四个 job：语法检查、客户端产物重建后 `git diff` 必须为空、单测、manifest 校验。
 
 ## 常见问题
 

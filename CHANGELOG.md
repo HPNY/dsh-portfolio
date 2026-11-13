@@ -3,6 +3,25 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.3] - 2026-11-13
+
+一次「仓库自身的生成器与临时产物」收口。功能没有变化，修的是**会自己把成果改回旧品牌的东西**：`docs/og.png` 的生成脚本一直画的还是改名前的画面，任何人重跑一次就覆盖回旧品牌。
+
+### Fixed
+
+- **`scripts/make-og.py` 会把 `docs/og.png` 覆盖回旧品牌**：该脚本是这张 1200×630 社交卡片的唯一生成器（README 顶部横幅与 Pages `og:image` 共用），但内部仍写着 `韭菜盒子 LeekBox` 与 `github.com/SuCriss/dsh-leekbox`。也就是说上一轮手工重做的图只是「改了产物、没改生成器」，下次有人跑 `python scripts/make-og.py` 就前功尽弃。整份重写为与 `docs/index.html` 同源的视觉：品牌文案（`TITLE` / `TITLE_EN` / `REPO` / `EYEBROW` / `CHIPS` / `MOCK_TABS` / `MOCK_ROWS` / `FOOT_NOTE`）全部提为顶部常量，配色对齐 `--brand:#6c8cff` / `--up:#f0424d` / `--down:#10b981` / `--bg:#0a0c12`，图标复用 `assets/icon.svg` 的 `M3 3v18h18` / `M18 17V9` / `M13 17V5` / `M8 17v-3` 同一组路径。
+- **楔形色带**：背景高光原先用「`ImageDraw` 画填充椭圆 → `ImageFilter.GaussianBlur(130)` → `Image.composite`」，在极暗底色上出现两道巨大楔形斜线（对比增强 6× 后清晰可见）。根因是**8 位灰度遮罩做高斯模糊会产生等值带**，1–2 个色阶差在 #0a0c12 上就足以成线。改为 `add_radial_glow()` 按距离解析计算 smoothstep 权重逐像素混合，没有量化中间态，色带消失。
+- **字体跨平台**：原来硬编码 `FONTS = Path("C:/Windows/Fonts")` 与 `msyhbd.ttc` 等文件名，非 Windows 直接崩。改为依次尝试 Windows / macOS / Noto 三处目录的候选字体，全都找不到时退化到 `ImageFont.load_default()`，不中断生成。
+
+### Changed
+
+- **README 两份的测试套件数对齐**（`README.md:281`、`README.en.md:278`）：`25 个套件（24 \`*-test.mjs\`）` → `26 个（25 个）`。上一版新增 `cache-name-test.mjs` 后忘了同步。两个有真实网络依赖、按 `CHANGELOG.md` 既定策略不进 CI 的套件（`screener-test.mjs`、`rank-fallback-test.mjs`）已核对确认是有意排除，不是遗漏。
+- **删除 `.bench-tabs/`**：四个文件（两个 1440 宽基准页、一个 375 宽、一个生成脚本，约 188KB）是当时验收用的一次性产物，`gen.mjs` 自己第 2 行就写着「不是产物的一部分，验收完可直接删掉整个 `.bench-tabs` 目录」。内容还停在旧品牌（`<span class="lkb-logo">🥬</span>韭菜盒子`），且 `ICONS` 的 key 是 `star` 而 `TABS` 用 `watchlist`，自选页签图标渲染成字面量 `undefined`。已在 `.gitignore` 加一条防止再被提交。
+
+### Notes
+
+- 试过给背景加 Bayer 有序抖动来消除 8 位色阶台阶：并排对比（对比增强 2.0× / 亮度 1.6×）**反而更糟**——暗部出现横向噪点纹理，体积从 105kb 涨到 154kb。已放弃，并在脚本里写明原因。台阶本身只有二十几级、正常观看不可见；真正的修复是上面那条「解析式径向渐变替代高斯模糊遮罩」。
+
 ## [0.26.2] - 2026-11-13
 
 一次面向"代码与文档都对不上"的收口。代码侧修掉一个**真实的、静默的**缓存缺陷，文档侧把 CHANGELOG 缺的 23 个版本段补齐、并把三份停在旧实现上的文档对齐到现状。

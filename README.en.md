@@ -275,7 +275,7 @@ The screener is split by responsibility into 5 files, with `lib/screener.js` as 
 
 ### Tests
 
-25 test suites (24 `*-test.mjs` plus `verify-fixes.mjs`), all run **serially to completion** by `run-tests.mjs` — one failing suite never makes the rest disappear silently, and the run ends with a single verdict plus the list of failures. CI is split into four jobs: syntax check, client artifact rebuild with an empty `git diff`, unit tests, manifest validation.
+26 test suites (25 `*-test.mjs` plus `verify-fixes.mjs`), all run **serially to completion** by `run-tests.mjs` — one failing suite never makes the rest disappear silently, and the run ends with a single verdict plus the list of failures. CI is split into four jobs: syntax check, client artifact rebuild with an empty `git diff`, unit tests, manifest validation.
 
 ## FAQ
 
