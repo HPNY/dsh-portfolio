@@ -75,6 +75,30 @@ export function moveItem(list, from, to) {
 }
 
 /**
+ * 把「保存自定义顺序的结果」翻译成「要不要回退本地顺序」。
+ *
+ * 为什么需要：拖拽后本地顺序立刻生效（否则会闪一下旧顺序），但**保存可能失败**。
+ * v0.26.0 就踩过这个坑：宿主里跑的还是旧服务端代码（reorder 路由没注册，POST 回
+ * 401），本地顺序却照样生效——界面显示新顺序、服务端一无所知，重新进入页面就变回
+ * 旧顺序，用户只会觉得「拖了白拖」。界面不能显示一个没保存成功的顺序，所以失败
+ * 必须回退，并让调用方提示原因。
+ *
+ * @param outcome      onReorder 的返回值（Promise 才能感知成败）
+ * @param onRollback   回退动作（失败时调用）
+ * @returns Promise<boolean>（true = 已回退），或 null（无需等待）
+ */
+export function settleOrderCommit(outcome, onRollback) {
+	if (outcome === null || outcome === void 0 || typeof outcome.then !== "function") return null;
+	return Promise.resolve(outcome).then(
+		() => false,
+		() => {
+			onRollback();
+			return true;
+		}
+	);
+}
+
+/**
  * 把「子集的新顺序」合并回完整列表。
  *
  * 为什么需要：拖拽发生在**当前分组**里（比如只看「短线」分组），拿到的是子集；

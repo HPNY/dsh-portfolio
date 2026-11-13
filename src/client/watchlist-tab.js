@@ -446,14 +446,18 @@ export function WatchlistTab({ onOpen, bump }) {
 	};
 	// 自定义顺序提交：服务端要求**完整** code 集合（少了会 409），但拖拽发生在
 	// 「当前分组」里，拿到的是子集 —— 用 mergeSubsetOrder 合回完整顺序。
+	// 必须 return promise：useTableSort 靠它判断保存成败，失败时回退本地顺序。
 	const commitOrder = useCallback(
 		(subsetCodes) => {
 			const merged = mergeSubsetOrder(items, subsetCodes);
-			api(API.watchlistReorder, { method: "POST", body: { codes: merged } })
+			return api(API.watchlistReorder, { method: "POST", body: { codes: merged } })
 				.then((d) => {
 					if (Array.isArray(d?.watchlist)) setItems(d.watchlist);
 				})
-				.catch((e) => setIoMsg(`保存排序失败：${describeError(e)}`));
+				.catch((e) => {
+					setIoMsg(`保存排序失败：${describeError(e)}`);
+					throw e;
+				});
 		},
 		[items]
 	);

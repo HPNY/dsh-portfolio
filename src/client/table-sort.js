@@ -16,10 +16,10 @@
 //     pointer 方案要自己算插入位置、还得处理滚动，代码多且易错。
 //   * **拖拽后本地立即生效**：等服务端确认期间不回弹，否则拖完会闪一下旧顺序。
 import { h, useCallback, useEffect, useRef, useState } from "./react.js";
-import { moveItem, nextSortDir, sortRows } from "./table-sort-core.js";
+import { moveItem, nextSortDir, settleOrderCommit, sortRows } from "./table-sort-core.js";
 
 // 重新导出，调用方只 import 这一个模块就够。
-export { moveItem, nextSortDir, sortRows };
+export { moveItem, nextSortDir, settleOrderCommit, sortRows };
 
 /**
  * 表格排序 + 拖拽排序的组合钩子。
@@ -113,8 +113,15 @@ export function useTableSort(rows, getters, onReorder, idOf = (row) => row.code)
 				if (from === null || from === index) return;
 				const moved = moveItem(sorted, from, index);
 				const ids = moved.map(idOf);
-				setLocalOrder(ids); // 先本地生效
-				onReorder(ids); // 再提交（失败时调用方负责提示，不回弹）
+				setLocalOrder(ids); // 先本地生效，等服务端确认期间不回弹
+				// 提交失败必须**回退**本地顺序。
+				// 踩过的坑：v0.26.0 里宿主加载的还是旧服务端代码（reorder 路由没注册，
+				// 返回 401），而本地顺序照样生效——界面显示的是新顺序，服务端一无所知；
+				// 重新进入页面才变回旧顺序，用户只会觉得"拖了白拖"。
+				// 界面不能显示一个没保存成功的顺序，所以失败就退回服务端顺序，
+				// 具体原因由调用方提示（onReorder 返回 Promise 才能感知失败）。
+				const outcome = onReorder(ids);
+				settleOrderCommit(outcome, () => setLocalOrder(null));
 			},
 			onDragEnd: () => {
 				setDragIndex(null);

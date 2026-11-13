@@ -4,7 +4,7 @@
 // 稳定性），比在 bundle 里 grep 锚点可靠得多；服务端重排还要验证"集合不一致就拒绝"
 // 这条数据安全规则——静默拼接会悄悄改用户数据，必须测。
 import { readFileSync } from "node:fs";
-import { sortRows, nextSortDir, moveItem, mergeSubsetOrder } from "./src/client/table-sort-core.js";
+import { sortRows, nextSortDir, moveItem, mergeSubsetOrder, settleOrderCommit } from "./src/client/table-sort-core.js";
 
 let pass = 0;
 let fail = 0;
@@ -214,6 +214,27 @@ const fundSrc = readFileSync(new URL("./lib/otc-fund.js", import.meta.url), "utf
 check("基金 mutate 支持 reorder 动作", fundSrc.includes('if (action === "reorder")'));
 check("基金快照按 order 排序并补齐未列出的持仓", fundSrc.includes("const ordered = order.filter((c) => known.has(c))") && fundSrc.includes("const rest = all.filter((c) => !ordered.includes(c))"));
 
+// ── 保存失败必须回退本地顺序 ────────────────────────────────────────
+// 真实故障：宿主加载旧服务端代码 → reorder 路由未注册 → POST 回 401，
+// 但本地顺序照样生效，界面显示新顺序、服务端一无所知，重进就变回旧顺序。
+{
+	let rolledBack = false;
+	const okOutcome = settleOrderCommit(Promise.resolve(), () => (rolledBack = true));
+	check("保存成功不回退", okOutcome !== null && (await okOutcome) === false && rolledBack === false);
+
+	let rolledBack2 = false;
+	const failOutcome = settleOrderCommit(Promise.reject(new Error("401")), () => (rolledBack2 = true));
+	const didRollback = await failOutcome;
+	check("保存失败回退本地顺序", didRollback === true && rolledBack2 === true);
+	// 吞掉上面那个 rejected promise 的未处理告警
+	void failOutcome.catch(() => {});
+
+	// 回调不返回 promise（老签名/同步回调）→ 无从判断，不假装回退
+	let rolledBack3 = false;
+	check("回调不返回 Promise 时不回退（无从判断）", settleOrderCommit(void 0, () => (rolledBack3 = true)) === null && rolledBack3 === false);
+	check("回调返回 null 时不回退", settleOrderCommit(null, () => (rolledBack3 = true)) === null && rolledBack3 === false);
+}
+
 // ── 组件渲染：SortableTh 真的产出了可点击表头 ────────────────────────
 // 用 esbuild 把 table-sort.js 打成一个临时包（"react" 别名指向轻量桩），
 // 然后当普通函数调用 —— 这样断言的是真实元素树（类名/aria/箭头），
@@ -286,6 +307,18 @@ check("基金页接了 useTableSort + SortableTh", fund.includes("useTableSort("
 check("自选页行铺开拖拽属性", wl.includes("table.dragProps(rowIndex)"));
 check("基金页行铺开拖拽属性", fund.includes("table.dragProps(rowIndex)"));
 check("两页都有排序提示（说明按列排序时拖拽暂停）", wl.includes("拖拽自定义顺序已暂停") && fund.includes("拖拽自定义顺序已暂停"));
+
+// ── 保存失败必须让界面知道（否则显示一个没保存成功的顺序）─────────────
+// 真实故障复盘：v0.26.0 发布后用户拖拽排序，重进页面变回原顺序。两个成因：
+//   (1) 宿主还跑着旧服务端代码，reorder 路由没注册 → POST 回 401；
+//   (2) 客户端把失败吞了，本地顺序照样生效 —— 界面显示新顺序，服务端一无所知。
+// 这里锁住 (2)：两个提交回调都必须把 promise 交出去，并在失败时 throw，
+// 让 useTableSort 的回退逻辑真的能触发。
+check("自选 commitOrder 把 promise 交出去（回退逻辑靠它判断）", /return api\(API\.watchlistReorder/.test(wl));
+check("自选 commitOrder 失败时抛错", /保存排序失败[\s\S]{0,160}?throw e;/.test(wl));
+check("基金 commitFundOrder 把 promise 交出去", /\(codes\) =>\s*mutate\(\{ action: "reorder"/.test(fund));
+check("基金 commitFundOrder 失败时抛错", /保存排序失败[\s\S]{0,160}?throw e;/.test(fund));
+check("拖拽 drop 后调用 settleOrderCommit（失败回退）", readFileSync(new URL("./src/client/table-sort.js", import.meta.url), "utf8").includes("settleOrderCommit(outcome"));
 
 console.log(`\n共 ${pass + fail} 项，通过 ${pass}，失败 ${fail}`);
 if (fail > 0) process.exit(1);

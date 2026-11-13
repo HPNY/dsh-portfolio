@@ -172,12 +172,15 @@ export function OtcFundTab({ active = true, onOpen, bump = 0 }) {
 		pnl: (f) => num(f?.pnl),
 	};
 	// 自定义顺序提交：整份 code 数组（服务端校验集合一致，不一致回 409）。
+	// 必须 return promise：useTableSort 靠它判断保存成败，失败时回退本地顺序。
 	const commitFundOrder = useCallback(
-		(codes) => {
+		(codes) =>
 			mutate({ action: "reorder", codes })
 				.then(() => load())
-				.catch((e) => setMsg(`保存排序失败：${describeError(e)}`));
-		},
+				.catch((e) => {
+					setMsg(`保存排序失败：${describeError(e)}`);
+					throw e;
+				}),
 		[mutate, load]
 	);
 	const table = useTableSort(funds, sortGetters, commitFundOrder);
